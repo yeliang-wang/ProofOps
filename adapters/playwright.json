@@ -1,0 +1,10 @@
+{
+  "schema": "proofops-evidence-adapter/v1",
+  "id": "playwright",
+  "title": "Playwright Evidence Adapter",
+  "category": "e2e",
+  "evidenceType": "browser-test-run",
+  "requiredInputs": ["baseUrl", "testCommand", "traceOrReport", "candidateRef"],
+  "proofRule": "A release row passes only when the browser test runs against the release candidate surface and produces a persisted report or trace.",
+  "nonProductionLimit": "Screenshots without assertions, static HTML previews, or local-only smoke checks do not count as product-grade E2E release evidence."
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "proofops-field-ga-scope/v1",
+  "id": "proofops-field-ga",
+  "releaseTarget": "field-ga",
+  "scopeType": "field",
+  "minimumIndependentRealProjects": 2,
+  "requiredDecision": "GO",
+  "requiredTargetReached": true,
+  "requiredBoundaries": ["llm", "scm", "ci-cd", "product-api", "rollback", "observability", "audit"],
+  "productionEvidenceRule": "Field GA requires at least two independent real target products to produce product-native GO decisions with targetReached=true. Production-representative sandbox, local self-evidence, smoke-only checks, and chat-only summaries do not count as independent field evidence."
+}

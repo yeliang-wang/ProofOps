@@ -29,6 +29,10 @@ Every maturity or release loop must define final goal, phase goals, acceptance c
 
 Release, beta, RC, and GA loops must use a release coverage matrix with evidence map, blocker policy, repair policy, release decision, and per-phase decision chain.
 
-## Stable GA
+## Core GA
 
-`npm run release:check:ga` evaluates stable GA. In beta, it is expected to fail until scoped final reports are product-native `GO` and targetReached=true.
+`npm run release:check:core-ga` and `npm run release:check:ga` evaluate Core GA. Core GA covers the stable governance engine, reusable profile templates, evidence adapter contracts, production-representative evidence, and final reports.
+
+## Field GA
+
+`npm run release:check:field-ga` evaluates independent Field GA. It is expected to fail until at least two independent real target products produce product-native `GO` decisions with `targetReached=true`.

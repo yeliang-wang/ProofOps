@@ -8,9 +8,11 @@ ProofOps is not a general agent framework like LangGraph, CrewAI, or AutoGen. It
 
 ## Status
 
-ProofOps is currently `beta`.
+ProofOps is currently `1.0.0 Core GA`.
 
-It has the independent project structure, agent/plugin contracts, target presets, generated Codex distribution, release coverage runner, release readiness gates, and CI workflow needed to be a GA candidate. It is not stable GA until scoped real-project profiles produce product-native `GO` decisions and `npm run release:check:ga` passes.
+Core GA means the ProofOps governance engine, agent/plugin contracts, target presets, generated Codex distribution, release coverage runner, production-representative sandbox, reusable profile templates, evidence adapter contracts, release readiness gates, and CI workflow are stable and repeatably validated.
+
+Core GA does not claim independent field validation. Field GA remains a separate milestone that requires at least two independent real target products to produce product-native `GO` decisions with `targetReached=true`.
 
 ## Core Agent
 
@@ -78,13 +80,20 @@ npm run eval
 npm run release:check
 ```
 
-Stable GA gate:
+Core GA gate:
 
 ```bash
+npm run release:check:core-ga
 npm run release:check:ga
 ```
 
-In beta, this command is expected to fail until scoped GA evidence is complete.
+Field GA gate:
+
+```bash
+npm run release:check:field-ga
+```
+
+Field GA is expected to fail until independent real-project evidence is available.
 
 ## Codex Usage
 
@@ -113,11 +122,26 @@ Run a profile once:
 npm run release:runner -- --profile project-profiles/examples/proofops.public-beta.json --once
 ```
 
+Reusable profile templates live under `project-profiles/templates/`, and evidence adapter contracts live under `adapters/`.
+
+```bash
+npm run proofops:install -- --help
+python3 scripts/proofops-control.py profile-templates
+python3 scripts/proofops-control.py adapters
+python3 scripts/proofops-control.py init-profile \
+  --template github-actions-beta \
+  --project-id your-project \
+  --output project-profiles/examples/your-project.beta.json \
+  --dry-run
+```
+
 ## Release Gates
 
-`npm run release:check` is the public-beta gate. It checks package metadata, lifecycle state, target presets, loop contracts, generated distributions, deterministic eval, project-scoped install drift, release docs, support docs, and profile readiness.
+`npm run release:check` is the public baseline gate. It checks package metadata, lifecycle state, target presets, loop contracts, generated distributions, deterministic eval, project-scoped install drift, release docs, support docs, and profile readiness.
 
-`npm run release:check:ga` is the stable GA gate. It requires scoped agents and plugins to be `production-ready` and every scoped project profile final report to be `GO` with `targetReached=true`.
+`npm run release:check:ga` is the Core GA gate. It requires scoped agents and plugins to be `production-ready`, reusable profile templates and evidence adapters to be present, and scoped Core GA project profile final reports to be `GO` with `targetReached=true`.
+
+`npm run release:check:field-ga` is the independent field validation gate. It requires at least two independent real target products with product-native `GO` decisions. Production-representative sandbox evidence does not count as field evidence.
 
 ## Boundary
 

@@ -1,0 +1,10 @@
+{
+  "schema": "proofops-evidence-adapter/v1",
+  "id": "gitlab",
+  "title": "GitLab Evidence Adapter",
+  "category": "scm",
+  "evidenceType": "repository-and-pipeline",
+  "requiredInputs": ["baseUrl", "projectId", "commit", "pipelineId"],
+  "proofRule": "A release row passes only when GitLab repository metadata and the release pipeline are reachable through the configured token and tied to the candidate commit.",
+  "nonProductionLimit": "Unauthenticated reachability, local Git status, or manually pasted pipeline summaries do not count as SCM or CI/CD release evidence."
+}

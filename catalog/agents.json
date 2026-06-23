@@ -4,8 +4,8 @@
   "agents": [
     {
       "id": "proofops-governor",
-      "version": "0.1.0",
-      "lifecycle": "beta",
+      "version": "1.0.0",
+      "lifecycle": "production-ready",
       "pluginId": "proofops",
       "pluginTitle": "ProofOps",
       "category": "proofops",

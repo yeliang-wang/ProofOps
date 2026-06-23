@@ -22,7 +22,9 @@ MANIFEST_DIR = REPO_ROOT / "manifests" / "agents"
 PLUGIN_DIR = REPO_ROOT / "plugins"
 PRODUCTION_REPRESENTATIVE_SANDBOX_DIR = REPO_ROOT / "sandbox" / "production-representative"
 PROJECT_PROFILE_DIR = REPO_ROOT / "project-profiles"
+PROFILE_TEMPLATE_DIR = PROJECT_PROFILE_DIR / "templates"
 TARGET_DIR = REPO_ROOT / "targets"
+ADAPTER_DIR = REPO_ROOT / "adapters"
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 PRODUCTION_RELEASE_RULE_SECTION = "Platform-Wide Production Release Rule"
 LOOP_GOAL_WINDOW_SECTION = "Loop Goal Window"
@@ -50,18 +52,21 @@ NON_PRODUCTION_RELEASE_EVIDENCE_FORBIDDEN = (
     "Use mock, fake, stub, simulator, fixture-only, demo-only, smoke-only, "
     "or chat-only evidence as production release evidence"
 )
-STABLE_GA_REQUIRED_DOCS = [
+CORE_GA_REQUIRED_DOCS = [
     "docs/ga-release-plan.md",
     "docs/ga-criteria.md",
     "docs/support-matrix.md",
     "docs/ga-scope.json",
+    "docs/core-ga-scope.json",
+    "docs/field-ga-scope.json",
     "CHANGELOG.md",
 ]
-STABLE_GA_REQUIRED_WORKFLOWS = [
+CORE_GA_REQUIRED_WORKFLOWS = [
     ".github/workflows/ci.yml",
     ".github/workflows/release-check.yml",
 ]
-STABLE_GA_SCOPE_PATH = REPO_ROOT / "docs" / "ga-scope.json"
+CORE_GA_SCOPE_PATH = REPO_ROOT / "docs" / "core-ga-scope.json"
+FIELD_GA_SCOPE_PATH = REPO_ROOT / "docs" / "field-ga-scope.json"
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -223,33 +228,12 @@ def docs_checks() -> list[dict[str, Any]]:
     return checks
 
 
-def stable_ga_checks() -> list[dict[str, Any]]:
-    checks: list[dict[str, Any]] = []
-    agent_lifecycles, plugin_lifecycles = lifecycle_map()
-    scope = read_json(STABLE_GA_SCOPE_PATH) if STABLE_GA_SCOPE_PATH.exists() else {}
-    scoped_agents = scope.get("agents") or sorted(agent_lifecycles)
-    scoped_plugins = scope.get("plugins") or sorted(plugin_lifecycles)
-    scoped_profile_paths = set(scope.get("projectProfiles") or [])
-    unknown_scoped_agents = [agent for agent in scoped_agents if agent not in agent_lifecycles]
-    unknown_scoped_plugins = [plugin for plugin in scoped_plugins if plugin not in plugin_lifecycles]
-    non_production_agents = [agent for agent in scoped_agents if agent_lifecycles.get(agent) != "production-ready"]
-    non_production_plugins = [plugin for plugin in scoped_plugins if plugin_lifecycles.get(plugin) != "production-ready"]
-    non_ga_agents = [agent for agent, lifecycle in agent_lifecycles.items() if lifecycle != "production-ready" and agent not in scoped_agents]
-    non_ga_plugins = [plugin for plugin, lifecycle in plugin_lifecycles.items() if lifecycle != "production-ready" and plugin not in scoped_plugins]
-    profile_paths = sorted(PROJECT_PROFILE_DIR.glob("**/*.json"))
-    project_profiles = [read_json(path) for path in profile_paths]
-    release_profiles = [
-        (path, profile)
-        for path, profile in zip(profile_paths, project_profiles)
-        if profile.get("schema") == "proofops-project-profile/v1"
-    ]
-    if scoped_profile_paths:
-        release_profiles = [
-            (path, profile)
-            for path, profile in release_profiles
-            if path.relative_to(REPO_ROOT).as_posix() in scoped_profile_paths
-        ]
-    missing_scoped_profiles = sorted(scoped_profile_paths - {path.relative_to(REPO_ROOT).as_posix() for path, _ in release_profiles})
+def profile_reports_for(paths: list[str]) -> tuple[list[str], list[str], list[str], list[tuple[Path, dict[str, Any]]]]:
+    release_profiles = []
+    for rel_path in paths:
+        path = REPO_ROOT / rel_path
+        if path.exists():
+            release_profiles.append((path, read_json(path)))
     final_report_missing = []
     final_report_invalid = []
     final_report_not_go = []
@@ -261,7 +245,7 @@ def stable_ga_checks() -> list[dict[str, Any]]:
         markdown = project_root / final_reports.get("markdown", "")
         json_report = project_root / final_reports.get("json", "")
         if not markdown.exists() or not json_report.exists():
-            final_report_missing.append(str(path))
+            final_report_missing.append(str(path.relative_to(REPO_ROOT)))
             continue
         try:
             parsed_report = read_json(json_report)
@@ -274,26 +258,51 @@ def stable_ga_checks() -> list[dict[str, Any]]:
         target_reached = (parsed_report.get("finalTargetSummary") or {}).get("targetReached")
         expected_go = profile.get("releaseDecision", {}).get("goStatus", "GO")
         if release_status != expected_go or target_reached is not True:
-            final_report_not_go.append(f"{path}:{release_status}")
-    required_docs_missing = [path for path in STABLE_GA_REQUIRED_DOCS if not (REPO_ROOT / path).exists()]
-    required_workflows_missing = [path for path in STABLE_GA_REQUIRED_WORKFLOWS if not (REPO_ROOT / path).exists()]
-    package = read_json(REPO_ROOT / "package.json")
-    stable_release_gate_script = package.get("scripts", {}).get("release:check:ga") == "python3 scripts/release-readiness.py --target stable-ga"
+            final_report_not_go.append(f"{path.relative_to(REPO_ROOT)}:{release_status}")
+    return final_report_missing, final_report_invalid, final_report_not_go, release_profiles
 
-    add(checks, "stable-ga-scope-file", scope.get("schema") == "proofops-ga-scope/v1", str(STABLE_GA_SCOPE_PATH))
-    add(checks, "stable-ga-docs", not required_docs_missing, ", ".join(required_docs_missing))
-    add(checks, "stable-ga-ci-workflows", not required_workflows_missing, ", ".join(required_workflows_missing))
-    add(checks, "stable-ga-release-script", stable_release_gate_script, "release:check:ga must run stable-ga target")
-    add(checks, "stable-ga-scoped-agents-known", not unknown_scoped_agents, ", ".join(unknown_scoped_agents))
-    add(checks, "stable-ga-scoped-plugins-known", not unknown_scoped_plugins, ", ".join(unknown_scoped_plugins))
-    add(checks, "stable-ga-agent-lifecycles", not non_production_agents, ", ".join(non_production_agents))
-    add(checks, "stable-ga-plugin-lifecycles", not non_production_plugins, ", ".join(non_production_plugins))
-    add(checks, "stable-ga-non-ga-components-documented", bool(scope.get("nonGaComponentsPolicy", {}).get("releaseNotesMustListBetaComponents")), f"agents={', '.join(non_ga_agents)} plugins={', '.join(non_ga_plugins)}")
-    add(checks, "stable-ga-project-profile-count", len(release_profiles) >= 3, f"{len(release_profiles)} release project profile(s)")
-    add(checks, "stable-ga-scoped-project-profiles", not missing_scoped_profiles, ", ".join(missing_scoped_profiles))
+
+def core_ga_checks() -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    agent_lifecycles, plugin_lifecycles = lifecycle_map()
+    scope = read_json(CORE_GA_SCOPE_PATH) if CORE_GA_SCOPE_PATH.exists() else {}
+    scoped_agents = scope.get("agents") or sorted(agent_lifecycles)
+    scoped_plugins = scope.get("plugins") or sorted(plugin_lifecycles)
+    scoped_profile_paths = set(scope.get("requiredProjectProfiles") or [])
+    scoped_template_paths = set(scope.get("requiredProfileTemplates") or [])
+    scoped_adapter_ids = set(scope.get("requiredEvidenceAdapters") or [])
+    unknown_scoped_agents = [agent for agent in scoped_agents if agent not in agent_lifecycles]
+    unknown_scoped_plugins = [plugin for plugin in scoped_plugins if plugin not in plugin_lifecycles]
+    non_production_agents = [agent for agent in scoped_agents if agent_lifecycles.get(agent) != "production-ready"]
+    non_production_plugins = [plugin for plugin in scoped_plugins if plugin_lifecycles.get(plugin) != "production-ready"]
+    found_profile_paths = {path.relative_to(REPO_ROOT).as_posix() for path in PROJECT_PROFILE_DIR.glob("examples/*.json")}
+    found_template_paths = {path.relative_to(REPO_ROOT).as_posix() for path in PROFILE_TEMPLATE_DIR.glob("*.json")}
+    found_adapter_ids = {path.stem for path in ADAPTER_DIR.glob("*.json")}
+    missing_scoped_profiles = sorted(scoped_profile_paths - found_profile_paths)
+    missing_scoped_templates = sorted(scoped_template_paths - found_template_paths)
+    missing_scoped_adapters = sorted(scoped_adapter_ids - found_adapter_ids)
+    final_report_missing, final_report_invalid, final_report_not_go, release_profiles = profile_reports_for(sorted(scoped_profile_paths))
+    required_docs_missing = [path for path in CORE_GA_REQUIRED_DOCS if not (REPO_ROOT / path).exists()]
+    required_workflows_missing = [path for path in CORE_GA_REQUIRED_WORKFLOWS if not (REPO_ROOT / path).exists()]
+    package = read_json(REPO_ROOT / "package.json")
+    core_release_gate_script = package.get("scripts", {}).get("release:check:core-ga") == "python3 scripts/release-readiness.py --target core-ga"
+    ga_release_gate_script = package.get("scripts", {}).get("release:check:ga") == "python3 scripts/release-readiness.py --target core-ga"
+
+    add(checks, "core-ga-scope-file", scope.get("schema") == "proofops-core-ga-scope/v1", str(CORE_GA_SCOPE_PATH))
+    add(checks, "core-ga-docs", not required_docs_missing, ", ".join(required_docs_missing))
+    add(checks, "core-ga-ci-workflows", not required_workflows_missing, ", ".join(required_workflows_missing))
+    add(checks, "core-ga-release-scripts", core_release_gate_script and ga_release_gate_script, "release:check:core-ga and release:check:ga must run core-ga target")
+    add(checks, "core-ga-scoped-agents-known", not unknown_scoped_agents, ", ".join(unknown_scoped_agents))
+    add(checks, "core-ga-scoped-plugins-known", not unknown_scoped_plugins, ", ".join(unknown_scoped_plugins))
+    add(checks, "core-ga-agent-lifecycles", not non_production_agents, ", ".join(non_production_agents))
+    add(checks, "core-ga-plugin-lifecycles", not non_production_plugins, ", ".join(non_production_plugins))
+    add(checks, "core-ga-project-profile-count", len(release_profiles) >= 2, f"{len(release_profiles)} release project profile(s)")
+    add(checks, "core-ga-scoped-project-profiles", not missing_scoped_profiles, ", ".join(missing_scoped_profiles))
+    add(checks, "core-ga-profile-templates", len(found_template_paths) >= 3 and not missing_scoped_templates, ", ".join(missing_scoped_templates))
+    add(checks, "core-ga-evidence-adapters", len(found_adapter_ids) >= 5 and not missing_scoped_adapters, ", ".join(missing_scoped_adapters))
     add(
         checks,
-        "stable-ga-project-profile-final-reports",
+        "core-ga-project-profile-final-reports",
         all(profile.get("runner", {}).get("finalReports", {}).get("includeIterationTargetSummaries") is True and profile.get("runner", {}).get("finalReports", {}).get("includeFinalTargetSummary") is True for _, profile in release_profiles)
         and not final_report_missing
         and not final_report_invalid
@@ -303,9 +312,37 @@ def stable_ga_checks() -> list[dict[str, Any]]:
     )
     add(
         checks,
-        "stable-ga-public-release-artifacts",
+        "core-ga-public-release-artifacts",
         (REPO_ROOT / "CHANGELOG.md").exists() and (REPO_ROOT / ".github" / "workflows" / "release-check.yml").exists(),
         "requires CHANGELOG.md and release-check workflow",
+    )
+    return checks
+
+
+def field_ga_checks() -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    scope = read_json(FIELD_GA_SCOPE_PATH) if FIELD_GA_SCOPE_PATH.exists() else {}
+    minimum = int(scope.get("minimumIndependentRealProjects") or 2)
+    profile_paths = [
+        path
+        for path in sorted(PROJECT_PROFILE_DIR.glob("examples/*.json"))
+        if path.exists()
+    ]
+    field_profiles = []
+    for path in profile_paths:
+        profile = read_json(path)
+        if profile.get("fieldEvidence", {}).get("independentRealProject") is True:
+            field_profiles.append((path, profile))
+    final_report_missing, final_report_invalid, final_report_not_go, _ = profile_reports_for(
+        [path.relative_to(REPO_ROOT).as_posix() for path, _ in field_profiles]
+    )
+    add(checks, "field-ga-scope-file", scope.get("schema") == "proofops-field-ga-scope/v1", str(FIELD_GA_SCOPE_PATH))
+    add(checks, "field-ga-independent-real-project-count", len(field_profiles) >= minimum, f"{len(field_profiles)}/{minimum}")
+    add(
+        checks,
+        "field-ga-real-project-final-reports",
+        len(field_profiles) >= minimum and not final_report_missing and not final_report_invalid and not final_report_not_go,
+        f"missing={', '.join(final_report_missing)} invalid={', '.join(final_report_invalid)} notGo={', '.join(final_report_not_go)}",
     )
     return checks
 
@@ -377,8 +414,10 @@ def build_result(target: str = "public-beta") -> dict[str, Any]:
         "docs": docs_checks(),
         "commands": command_checks(),
     }
-    if target == "stable-ga":
-        groups["stableGa"] = stable_ga_checks()
+    if target in {"core-ga", "field-ga", "stable-ga"}:
+        groups["coreGa"] = core_ga_checks()
+    if target in {"field-ga", "stable-ga"}:
+        groups["fieldGa"] = field_ga_checks()
     failed = [
         f"{group}:{check['name']}"
         for group, checks in groups.items()
@@ -388,8 +427,9 @@ def build_result(target: str = "public-beta") -> dict[str, Any]:
     release_level = "not-ready"
     if not failed:
         release_level = target
-    elif target == "stable-ga":
-        base_groups = {key: checks for key, checks in groups.items() if key != "stableGa"}
+    elif target in {"core-ga", "field-ga", "stable-ga"}:
+        excluded = {"coreGa", "fieldGa"}
+        base_groups = {key: checks for key, checks in groups.items() if key not in excluded}
         base_failed = [
             f"{group}:{check['name']}"
             for group, checks in base_groups.items()
@@ -398,6 +438,13 @@ def build_result(target: str = "public-beta") -> dict[str, Any]:
         ]
         if not base_failed:
             release_level = "public-beta"
+        core_failed = [
+            f"coreGa:{check['name']}"
+            for check in groups.get("coreGa", [])
+            if check["status"] != "passed"
+        ]
+        if not base_failed and not core_failed:
+            release_level = "core-ga"
     return {
         "schema": "proofops-release-readiness/v1",
         "status": "passed" if not failed else "failed",
@@ -424,7 +471,7 @@ def print_human(result: dict[str, Any]) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Check release readiness")
     parser.add_argument("--json", action="store_true", help="Print machine-readable release readiness result")
-    parser.add_argument("--target", choices=["public-beta", "stable-ga"], default="public-beta", help="Release target to evaluate")
+    parser.add_argument("--target", choices=["public-beta", "core-ga", "field-ga", "stable-ga"], default="public-beta", help="Release target to evaluate")
     return parser
 
 

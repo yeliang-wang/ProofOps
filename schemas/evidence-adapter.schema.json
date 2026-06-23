@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProofOps Evidence Adapter",
+  "type": "object",
+  "required": ["schema", "id", "title", "category", "evidenceType", "requiredInputs", "proofRule", "nonProductionLimit"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": {
+      "const": "proofops-evidence-adapter/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidenceType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requiredInputs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "proofRule": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nonProductionLimit": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

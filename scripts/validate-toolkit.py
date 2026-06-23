@@ -29,7 +29,9 @@ CODEX_AGENT_DIR = REPO_ROOT / "integrations" / "codex" / "agents"
 SCHEMA_DIR = REPO_ROOT / "schemas"
 CATALOG_DIR = REPO_ROOT / "catalog"
 PROJECT_PROFILE_DIR = REPO_ROOT / "project-profiles"
+PROFILE_TEMPLATE_DIR = PROJECT_PROFILE_DIR / "templates"
 TARGET_DIR = REPO_ROOT / "targets"
+ADAPTER_DIR = REPO_ROOT / "adapters"
 PRODUCTION_REPRESENTATIVE_SANDBOX_DIR = REPO_ROOT / "sandbox" / "production-representative"
 AGENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -171,6 +173,7 @@ def validate_schema_files() -> None:
     required = [
         "agent-manifest.schema.json",
         "eval-result.schema.json",
+        "evidence-adapter.schema.json",
         "loop-contract.schema.json",
         "plugin-manifest.schema.json",
         "project-profile.schema.json",
@@ -257,7 +260,11 @@ def validate_production_representative_sandbox() -> None:
 
 def validate_project_profiles() -> None:
     require(PROJECT_PROFILE_DIR.exists(), f"{rel(PROJECT_PROFILE_DIR)}: project profile directory missing")
-    profiles = sorted(PROJECT_PROFILE_DIR.glob("**/*.json"))
+    profiles = [
+        path
+        for path in sorted(PROJECT_PROFILE_DIR.glob("**/*.json"))
+        if "templates" not in path.relative_to(PROJECT_PROFILE_DIR).parts
+    ]
     require(profiles, f"{rel(PROJECT_PROFILE_DIR)}: at least one project profile example is required")
     for path in profiles:
       profile = read_json(path)
@@ -293,6 +300,51 @@ def validate_project_profiles() -> None:
           has_release_decision_step or release_decision_mode == "profile-final-report",
           f"{rel(path)}: project profile requires a release-decision step or releaseDecision.mode=profile-final-report",
       )
+
+
+def validate_profile_templates() -> None:
+    require(PROFILE_TEMPLATE_DIR.exists(), f"{rel(PROFILE_TEMPLATE_DIR)}: profile template directory missing")
+    templates = sorted(PROFILE_TEMPLATE_DIR.glob("*.json"))
+    require(len(templates) >= 3, f"{rel(PROFILE_TEMPLATE_DIR)}: at least three profile templates are required")
+    seen = set()
+    for path in templates:
+        template = read_json(path)
+        require(template.get("schema") == "proofops-project-profile-template/v1", f"{rel(path)}: invalid schema")
+        template_id = template.get("id")
+        require(isinstance(template_id, str) and template_id, f"{rel(path)}: id is required")
+        require(template_id not in seen, f"{rel(path)}: duplicate profile template id {template_id}")
+        seen.add(template_id)
+        require(path.stem == template_id, f"{rel(path)}: filename must match id")
+        require(template.get("target") in {"demo-to-alpha", "alpha", "beta", "rc", "ga"}, f"{rel(path)}: invalid target")
+        require(isinstance(template.get("requiredAdapters"), list) and template["requiredAdapters"], f"{rel(path)}: requiredAdapters must be non-empty")
+        require(isinstance(template.get("requiredBoundaries"), list) and template["requiredBoundaries"], f"{rel(path)}: requiredBoundaries must be non-empty")
+        matrix = template.get("matrixSeed")
+        require(isinstance(matrix, list) and len(matrix) >= 3, f"{rel(path)}: matrixSeed must have at least three rows")
+        for row in matrix:
+            for key in ["capability", "scenario", "requiredEvidence"]:
+                require(isinstance(row.get(key), str) and row[key], f"{rel(path)}: matrixSeed row missing {key}")
+
+
+def validate_evidence_adapters() -> None:
+    require(ADAPTER_DIR.exists(), f"{rel(ADAPTER_DIR)}: evidence adapter directory missing")
+    adapters = sorted(ADAPTER_DIR.glob("*.json"))
+    require(len(adapters) >= 5, f"{rel(ADAPTER_DIR)}: at least five evidence adapter contracts are required")
+    seen = set()
+    for path in adapters:
+        adapter = read_json(path)
+        require(adapter.get("schema") == "proofops-evidence-adapter/v1", f"{rel(path)}: invalid schema")
+        adapter_id = adapter.get("id")
+        require(isinstance(adapter_id, str) and bool(AGENT_ID_RE.match(adapter_id)), f"{rel(path)}: invalid id")
+        require(adapter_id not in seen, f"{rel(path)}: duplicate evidence adapter id {adapter_id}")
+        seen.add(adapter_id)
+        require(path.stem == adapter_id, f"{rel(path)}: filename must match id")
+        require(isinstance(adapter.get("requiredInputs"), list) and adapter["requiredInputs"], f"{rel(path)}: requiredInputs must be non-empty")
+        for key in ["title", "proofRule", "nonProductionLimit"]:
+            require(isinstance(adapter.get(key), str) and len(adapter[key]) >= 8, f"{rel(path)}: {key} is required")
+        for key in ["category", "evidenceType"]:
+            require(isinstance(adapter.get(key), str) and len(adapter[key]) >= 3, f"{rel(path)}: {key} is required")
+        limit = adapter["nonProductionLimit"].lower()
+        require(any(term in limit for term in ["smoke", "mock", "fixture", "chat", "local"]), f"{rel(path)}: nonProductionLimit must name non-production evidence limits")
 
 
 def validate_project_profile_services(path: Path, services: object) -> None:
@@ -585,8 +637,10 @@ def validate_proposal_script_contract() -> None:
 def validate_all() -> list[str]:
     validate_schema_files()
     validate_target_presets()
+    validate_evidence_adapters()
     validate_production_representative_sandbox()
     validate_project_profiles()
+    validate_profile_templates()
     paths = sorted(MANIFEST_DIR.glob("*.json"))
     require(paths, "manifests/agents: no manifest files found")
 

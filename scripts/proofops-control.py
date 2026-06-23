@@ -17,6 +17,8 @@ MANIFEST_DIR = REPO_ROOT / "manifests" / "agents"
 PLUGIN_DIR = REPO_ROOT / "plugins"
 CATALOG_DIR = REPO_ROOT / "catalog"
 TARGET_DIR = REPO_ROOT / "targets"
+ADAPTER_DIR = REPO_ROOT / "adapters"
+PROFILE_TEMPLATE_DIR = REPO_ROOT / "project-profiles" / "templates"
 
 
 def read_json(path: Path) -> dict:
@@ -41,6 +43,14 @@ def load_plugins() -> list[dict]:
 
 def load_target_presets() -> list[dict]:
     return [read_json(path) for path in sorted(TARGET_DIR.glob("*.json"))]
+
+
+def load_evidence_adapters() -> list[dict]:
+    return [read_json(path) for path in sorted(ADAPTER_DIR.glob("*.json"))]
+
+
+def load_profile_templates() -> list[dict]:
+    return [read_json(path) for path in sorted(PROFILE_TEMPLATE_DIR.glob("*.json"))]
 
 
 def find_manifest(agent_id: str) -> dict:
@@ -285,6 +295,113 @@ def cmd_target_presets(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_adapters(args: argparse.Namespace) -> int:
+    adapters = load_evidence_adapters()
+    if args.json:
+        print(json.dumps({"schema": "proofops-evidence-adapter-list/v1", "adapters": adapters}, ensure_ascii=False, indent=2))
+        return 0
+    rows = [[adapter["id"], adapter["category"], adapter["evidenceType"], adapter["title"]] for adapter in adapters]
+    print_table(["adapter", "category", "evidence", "title"], rows)
+    return 0
+
+
+def cmd_profile_templates(args: argparse.Namespace) -> int:
+    templates = load_profile_templates()
+    if args.json:
+        print(json.dumps({"schema": "proofops-profile-template-list/v1", "templates": templates}, ensure_ascii=False, indent=2))
+        return 0
+    rows = [
+        [
+            template["id"],
+            template["target"],
+            ",".join(template.get("requiredAdapters", [])),
+            template["title"],
+        ]
+        for template in templates
+    ]
+    print_table(["template", "target", "adapters", "title"], rows)
+    return 0
+
+
+def cmd_init_profile(args: argparse.Namespace) -> int:
+    template_by_id = {template["id"]: template for template in load_profile_templates()}
+    template = template_by_id.get(args.template)
+    if not template:
+        raise SystemExit(f"unknown profile template: {args.template}")
+    lifecycle_id = args.lifecycle_id or f"{args.project_id}-{template['target']}"
+    output = Path(args.output).resolve()
+    profile = {
+        "schema": "proofops-project-profile/v1",
+        "projectId": args.project_id,
+        "releaseTarget": template["target"].upper(),
+        "lifecycleId": lifecycle_id,
+        "projectRoot": args.project_root,
+        "templateId": template["id"],
+        "requiredAdapters": template.get("requiredAdapters", []),
+        "targetPlan": {
+            "finalGoal": f"{args.project_id} reaches {template['target']} readiness using {template['title']}.",
+            "phaseGoals": [f"{row['capability']}: {row['scenario']}" for row in template.get("matrixSeed", [])],
+            "acceptanceCriteria": [row["requiredEvidence"] for row in template.get("matrixSeed", [])],
+            "finalDecision": ["GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"],
+        },
+        "targetPlanConfirmation": {
+            "status": "pending",
+            "instruction": "Review and confirm this generated target plan before running the release coverage matrix.",
+        },
+        "releaseDecision": {
+            "mode": "profile-final-report",
+            "goStatus": "GO",
+            "source": "runner coverage matrix and final report",
+        },
+        "runner": {
+            "mode": "once",
+            "intervalMs": 1000,
+            "blockerPolicy": {
+                "mode": "stop-on-required-blocker",
+                "reason": "Required release coverage blockers require productized repair before release evidence can be used.",
+                "nextAction": "Repair the blocker, verify targeted evidence, then rerun the profile.",
+                "exitCode": 2,
+                "repairWorkflows": {
+                    "enabled": True,
+                    "types": ["repository-quality", "coverage-evidence-gap", "release-criterion"],
+                },
+            },
+            "finalReports": {
+                "markdown": f"data/proofops/{lifecycle_id}/final-report.md",
+                "json": f"data/proofops/{lifecycle_id}/final-report.json",
+                "includeIterationTargetSummaries": True,
+                "includeFinalTargetSummary": True,
+            },
+        },
+        "steps": [
+            {
+                "id": f"{row['capability']}-{row['scenario']}".replace("_", "-"),
+                "type": "command",
+                "capability": row["capability"],
+                "scenario": row["scenario"],
+                "command": "true",
+                "args": [],
+                "requiredEvidence": row["requiredEvidence"],
+                "required": True,
+            }
+            for row in template.get("matrixSeed", [])
+        ],
+    }
+    if args.confirmed:
+        profile["targetPlanConfirmation"] = {
+            "status": "confirmed",
+            "confirmedBy": "profile-generator",
+            "instruction": "Generated profile was explicitly confirmed through proofops init-profile --confirmed.",
+        }
+    if args.dry_run:
+        print(json.dumps(profile, ensure_ascii=False, indent=2))
+        return 0
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"Wrote {output}")
+    return 0
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root).resolve()
     agents: list[str] = []
@@ -396,6 +513,24 @@ def build_parser() -> argparse.ArgumentParser:
     target_parser = sub.add_parser("target-presets", help="List ProofOps maturity target presets")
     target_parser.add_argument("--json", action="store_true")
     target_parser.set_defaults(func=cmd_target_presets)
+
+    adapters_parser = sub.add_parser("adapters", help="List evidence adapter contracts")
+    adapters_parser.add_argument("--json", action="store_true")
+    adapters_parser.set_defaults(func=cmd_adapters)
+
+    templates_parser = sub.add_parser("profile-templates", help="List reusable project profile templates")
+    templates_parser.add_argument("--json", action="store_true")
+    templates_parser.set_defaults(func=cmd_profile_templates)
+
+    init_profile_parser = sub.add_parser("init-profile", help="Generate a project profile from a reusable template")
+    init_profile_parser.add_argument("--template", required=True)
+    init_profile_parser.add_argument("--project-id", required=True)
+    init_profile_parser.add_argument("--project-root", default=".")
+    init_profile_parser.add_argument("--lifecycle-id")
+    init_profile_parser.add_argument("--output", required=True)
+    init_profile_parser.add_argument("--confirmed", action="store_true")
+    init_profile_parser.add_argument("--dry-run", action="store_true")
+    init_profile_parser.set_defaults(func=cmd_init_profile)
 
     install_parser = sub.add_parser("install", help="Install agents or plugins into a target project")
     install_parser.add_argument("--project-root", default=".")

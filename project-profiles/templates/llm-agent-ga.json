@@ -1,0 +1,26 @@
+{
+  "schema": "proofops-project-profile-template/v1",
+  "id": "llm-agent-ga",
+  "title": "LLM Agent GA Profile",
+  "target": "ga",
+  "bestFor": "An AI agent product that needs GA proof across real LLM, E2E, product API, SCM, and CI/CD boundaries.",
+  "requiredAdapters": ["llm-provider", "playwright", "product-release-api", "github-actions"],
+  "requiredBoundaries": ["llm", "scm", "ci-cd", "product-api", "e2e", "rollback", "audit"],
+  "matrixSeed": [
+    {
+      "capability": "llm-boundary",
+      "scenario": "real-model-invocation",
+      "requiredEvidence": "Product trace records real provider and model usage for the GA scenario."
+    },
+    {
+      "capability": "e2e-boundary",
+      "scenario": "user-workflow",
+      "requiredEvidence": "Playwright report or trace proves the release candidate user workflow reaches terminal success."
+    },
+    {
+      "capability": "release-decision",
+      "scenario": "product-native-go",
+      "requiredEvidence": "Product-native release decision returns GO with targetReached=true for the GA target."
+    }
+  ]
+}

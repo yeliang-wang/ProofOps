@@ -1,22 +1,11 @@
 {
   "schema": "proofops-ga-scope/v1",
-  "id": "proofops-governance-stable-ga-candidate",
-  "releaseTarget": "stable-ga",
-  "scopeType": "scoped",
-  "agents": [
-    "proofops-governor"
-  ],
-  "plugins": [
-    "proofops"
-  ],
-  "projectProfiles": [
-    "project-profiles/examples/proofops.public-beta.json",
-    "project-profiles/examples/production-representative.local.json",
-    "project-profiles/examples/evopilot.ga.json"
-  ],
-  "nonGaComponentsPolicy": {
-    "allowedWhenDocumented": true,
-    "releaseNotesMustListBetaComponents": true
-  },
-  "productionEvidenceRule": "Scoped stable GA requires all scoped components to be production-ready and every scoped project profile final report to be GO with targetReached=true. Non-scoped beta agents and plugins are allowed only when documented as non-GA components."
+  "id": "proofops-v1-ga-scope",
+  "releaseTarget": "core-ga",
+  "scopeType": "core-with-field-ga-deferred",
+  "coreGaScope": "docs/core-ga-scope.json",
+  "fieldGaScope": "docs/field-ga-scope.json",
+  "agents": ["proofops-governor"],
+  "plugins": ["proofops"],
+  "productionEvidenceRule": "ProofOps v1.0 GA means Core GA unless explicitly qualified as Field GA. Field GA requires independent real target products and cannot be satisfied by local sandbox, mock, smoke-only, or chat-only evidence."
 }

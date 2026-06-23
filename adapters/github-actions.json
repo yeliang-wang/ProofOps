@@ -1,0 +1,10 @@
+{
+  "schema": "proofops-evidence-adapter/v1",
+  "id": "github-actions",
+  "title": "GitHub Actions Evidence Adapter",
+  "category": "ci-cd",
+  "evidenceType": "workflow-run",
+  "requiredInputs": ["repository", "workflow", "commit", "runId"],
+  "proofRule": "A release row passes only when the workflow run is tied to the release commit and reaches a successful terminal conclusion through GitHub Actions.",
+  "nonProductionLimit": "Local command output, copied logs, skipped jobs, or smoke-only workflow checks do not count as production release evidence."
+}

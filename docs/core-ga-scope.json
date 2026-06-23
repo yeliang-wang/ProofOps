@@ -1,0 +1,26 @@
+{
+  "schema": "proofops-core-ga-scope/v1",
+  "id": "proofops-v1-core-ga",
+  "releaseTarget": "core-ga",
+  "scopeType": "core",
+  "agents": ["proofops-governor"],
+  "plugins": ["proofops"],
+  "requiredProjectProfiles": [
+    "project-profiles/examples/proofops.public-beta.json",
+    "project-profiles/examples/production-representative.local.json"
+  ],
+  "requiredProfileTemplates": [
+    "project-profiles/templates/github-actions-beta.json",
+    "project-profiles/templates/gitlab-jenkins-rc.json",
+    "project-profiles/templates/llm-agent-ga.json"
+  ],
+  "requiredEvidenceAdapters": [
+    "github-actions",
+    "gitlab",
+    "jenkins",
+    "llm-provider",
+    "playwright",
+    "product-release-api"
+  ],
+  "productionEvidenceRule": "Core GA validates ProofOps governance contracts, reusable profiles, adapter contracts, local production-representative evidence, install drift checks, and final reports. It does not claim independent field validation."
+}

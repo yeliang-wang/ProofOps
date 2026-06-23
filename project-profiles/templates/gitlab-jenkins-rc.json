@@ -1,0 +1,26 @@
+{
+  "schema": "proofops-project-profile-template/v1",
+  "id": "gitlab-jenkins-rc",
+  "title": "GitLab + Jenkins RC Profile",
+  "target": "rc",
+  "bestFor": "An enterprise project that stores release source in GitLab and validates candidate builds through Jenkins.",
+  "requiredAdapters": ["gitlab", "jenkins"],
+  "requiredBoundaries": ["scm", "ci-cd", "candidate-build", "rollback-plan"],
+  "matrixSeed": [
+    {
+      "capability": "scm-boundary",
+      "scenario": "gitlab-candidate",
+      "requiredEvidence": "GitLab project, branch, and commit metadata are reachable with the release token."
+    },
+    {
+      "capability": "ci-cd-boundary",
+      "scenario": "jenkins-build",
+      "requiredEvidence": "Jenkins candidate build reaches successful terminal status."
+    },
+    {
+      "capability": "release-candidate",
+      "scenario": "rollback-and-risk",
+      "requiredEvidence": "Rollback path and high-risk closure are documented and verified for the candidate."
+    }
+  ]
+}

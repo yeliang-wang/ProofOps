@@ -1,0 +1,10 @@
+{
+  "schema": "proofops-evidence-adapter/v1",
+  "id": "product-release-api",
+  "title": "Product Release API Evidence Adapter",
+  "category": "product-api",
+  "evidenceType": "release-target-and-decision",
+  "requiredInputs": ["targetsEndpoint", "decisionEndpoint", "releaseTarget", "candidateRef"],
+  "proofRule": "A release row passes only when the product-native release target and latest decision agree that the candidate reached the requested target.",
+  "nonProductionLimit": "Health endpoints, synthetic decision files, smoke-only checks, or agent-only judgments cannot replace product-native release decisions when the product exposes them."
+}

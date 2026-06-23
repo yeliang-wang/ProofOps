@@ -1,0 +1,10 @@
+{
+  "schema": "proofops-evidence-adapter/v1",
+  "id": "llm-provider",
+  "title": "LLM Provider Evidence Adapter",
+  "category": "llm",
+  "evidenceType": "model-invocation",
+  "requiredInputs": ["provider", "model", "traceId", "operation"],
+  "proofRule": "A release row passes only when the product path records a real provider/model invocation for the release scenario without exposing secrets.",
+  "nonProductionLimit": "Prompt drafts, chat transcripts, disabled provider configs, or fixture model responses do not count as LLM release evidence."
+}

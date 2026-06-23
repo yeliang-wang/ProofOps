@@ -1,0 +1,26 @@
+{
+  "schema": "proofops-project-profile-template/v1",
+  "id": "github-actions-beta",
+  "title": "GitHub Actions Beta Profile",
+  "target": "beta",
+  "bestFor": "A repository that needs beta readiness evidence from real GitHub Actions workflow runs.",
+  "requiredAdapters": ["github-actions"],
+  "requiredBoundaries": ["scm", "ci-cd", "release-candidate-ref"],
+  "matrixSeed": [
+    {
+      "capability": "source-readiness",
+      "scenario": "candidate-commit",
+      "requiredEvidence": "Release candidate commit exists on the expected branch or tag."
+    },
+    {
+      "capability": "ci-cd",
+      "scenario": "workflow-run",
+      "requiredEvidence": "Required GitHub Actions workflow succeeds for the release candidate commit."
+    },
+    {
+      "capability": "release-report",
+      "scenario": "beta-readiness",
+      "requiredEvidence": "Final report includes coverage matrix, blocker policy, and beta decision."
+    }
+  ]
+}

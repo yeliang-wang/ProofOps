@@ -5,8 +5,8 @@
     {
       "schema": "proofops-plugin/v1",
       "id": "proofops",
-      "version": "0.1.0",
-      "lifecycle": "beta",
+      "version": "1.0.0",
+      "lifecycle": "production-ready",
       "category": "production-validation",
       "title": "ProofOps",
       "description": "Generic production lifecycle governance for agent products with real services, configurable validation duration, cleanup, non-mock precheck, long-run execution, evolution delivery, evidence bundles, and GO/NO-GO decisions.",
@@ -22,13 +22,14 @@
         "distribution-generation",
         "agent-eval",
         "install-roundtrip",
-        "release-readiness"
+        "release-readiness",
+        "core-ga-readiness"
       ],
       "agentCount": 1,
       "agentSummaries": [
         {
           "id": "proofops-governor",
-          "lifecycle": "beta",
+          "lifecycle": "production-ready",
           "category": "proofops"
         }
       ]

@@ -1,0 +1,10 @@
+{
+  "schema": "proofops-evidence-adapter/v1",
+  "id": "jenkins",
+  "title": "Jenkins Evidence Adapter",
+  "category": "ci-cd",
+  "evidenceType": "job-build",
+  "requiredInputs": ["baseUrl", "job", "buildNumber", "candidateRef"],
+  "proofRule": "A release row passes only when the Jenkins build reaches a successful terminal result and is traceable to the release candidate.",
+  "nonProductionLimit": "Jenkins login reachability, queued-only builds, smoke-only jobs, or unrelated green jobs are connectivity evidence only, not release evidence."
+}

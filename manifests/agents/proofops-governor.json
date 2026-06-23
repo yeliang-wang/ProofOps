@@ -1,8 +1,8 @@
 {
   "schema": "proofops-agent/v1",
   "id": "proofops-governor",
-  "version": "0.1.0",
-  "lifecycle": "beta",
+  "version": "1.0.0",
+  "lifecycle": "production-ready",
   "pluginId": "proofops",
   "category": "proofops",
   "source": {

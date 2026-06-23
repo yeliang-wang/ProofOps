@@ -1,0 +1,35 @@
+{
+  "schema": "proofops-target-preset/v1",
+  "id": "demo-to-alpha",
+  "title": "Demo to Alpha",
+  "lifecycleTarget": "demo-to-alpha",
+  "description": "Turn a demo into a repeatable engineering prototype with a visible architecture boundary and reproducible core workflow.",
+  "phaseTargets": [
+    "discover runnable entrypoints and core workflow",
+    "remove hard-coded production assumptions",
+    "add repeatable install, run, and validation commands",
+    "produce an alpha-readiness final report"
+  ],
+  "architectureCriteria": [
+    "core modules and runtime entrypoints are identifiable",
+    "demo-only scripts are separated from product code",
+    "state and configuration locations are explicit"
+  ],
+  "runtimeCriteria": [
+    "project installs from a clean checkout",
+    "core workflow runs with documented commands",
+    "basic tests or checks execute without manual UI-only steps"
+  ],
+  "releaseCriteria": [
+    "no production-ready claim is made",
+    "known gaps are listed as blockers or next actions",
+    "final report states whether alpha readiness was reached"
+  ],
+  "requiredEvidence": [
+    "clean install command output",
+    "core workflow command output",
+    "architecture readiness notes",
+    "final report"
+  ],
+  "decisionVocabulary": ["GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"]
+}

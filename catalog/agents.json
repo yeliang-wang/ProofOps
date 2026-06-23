@@ -1,0 +1,283 @@
+{
+  "schema": "proofops-agent-catalog/v1",
+  "agentCount": 1,
+  "agents": [
+    {
+      "id": "proofops-governor",
+      "version": "0.1.0",
+      "lifecycle": "beta",
+      "pluginId": "proofops",
+      "pluginTitle": "ProofOps",
+      "category": "proofops",
+      "purpose": "Evidence-first maturity and release governance for AI agent products, moving projects from demo, alpha, beta, and RC targets toward GA with architecture readiness, real production boundaries, release evidence, scenario matrices, risk registers, and GO/NO-GO decisions.",
+      "source": {
+        "claudeMarkdown": "agents/proofops-governor.md"
+      },
+      "distributions": {
+        "codexToml": "integrations/codex/agents/proofops-governor.toml"
+      },
+      "native": {
+        "model": "default",
+        "tools": [
+          "shell",
+          "filesystem",
+          "scm",
+          "ci"
+        ],
+        "disallowedTools": [
+          "mock-proofops",
+          "non-production-release-evidence"
+        ],
+        "skills": [
+          "agency-code-reviewer",
+          "agency-evidence-collector",
+          "agency-software-architect"
+        ],
+        "memory": "project-and-user",
+        "hooks": [],
+        "allowedSpawnAgents": []
+      },
+      "inputs": [
+        "product root",
+        "goal",
+        "maturity target",
+        "target preset",
+        "architecture review scope",
+        "user-requested duration",
+        "report interval",
+        "loop cadence",
+        "stop condition",
+        "release candidate",
+        "run mode",
+        "data root",
+        "service inventory",
+        "health checks",
+        "traffic generators",
+        "lifecycle runner",
+        "scenario matrix",
+        "reset policy",
+        "acceptance criteria"
+      ],
+      "outputs": [
+        "readiness result",
+        "maturity assessment",
+        "architecture readiness review",
+        "target preset selection",
+        "loop state",
+        "iteration report",
+        "cleanup result",
+        "non-mock precheck result",
+        "periodic status reports",
+        "product gap report",
+        "release evidence bundle",
+        "scenario matrix result",
+        "risk register",
+        "GO/CONDITIONAL-GO/NO-GO decision",
+        "coverage matrix result",
+        "repair verification result",
+        "per-phase decision chain"
+      ],
+      "loopContract": {
+        "enabled": true,
+        "evidenceRequired": true,
+        "confirmationGatesPreserved": true,
+        "inputs": [
+          "goal",
+          "runtimeTarget",
+          "loopCadence",
+          "stopCondition",
+          "runMode",
+          "acceptanceCriteria",
+          "maturityTarget",
+          "targetPreset",
+          "architectureReadiness",
+          "targetPlan",
+          "targetPlanConfirmation",
+          "finalGoal",
+          "phaseGoals",
+          "reportCadence",
+          "finalDecision",
+          "coverageMatrix",
+          "iterationPlan",
+          "evidenceMap",
+          "blockerPolicy",
+          "repairPolicy",
+          "releaseDecision",
+          "decisionChain"
+        ],
+        "stateFields": [
+          "goal",
+          "finalGoal",
+          "phaseGoals",
+          "currentPhase",
+          "acceptanceCriteria",
+          "maturityTarget",
+          "targetPreset",
+          "architectureReadiness",
+          "targetPlan",
+          "targetPlanConfirmation",
+          "reportCadence",
+          "finalDecision",
+          "attempt",
+          "runtimeTarget",
+          "readiness",
+          "precheck",
+          "lastEvidence",
+          "productGap",
+          "releaseEvidence",
+          "decision",
+          "blocker",
+          "nextAction",
+          "stopCondition",
+          "coverageMatrix",
+          "iterationPlan",
+          "evidenceMap",
+          "blockerPolicy",
+          "repairPolicy",
+          "releaseDecision",
+          "decisionChain",
+          "artifactIndex",
+          "stateSizeGuard"
+        ],
+        "stopPolicies": [
+          "product_native_go",
+          "conditional_go",
+          "no_go_blocker",
+          "maximum_duration",
+          "maximum_attempts",
+          "failed_readiness",
+          "pending_target_plan_confirmation",
+          "failed_precheck",
+          "release_decision",
+          "explicit_user_stop",
+          "coverage_matrix_complete",
+          "repeated_blocker_requires_repair"
+        ],
+        "cadenceModes": [
+          "continuous",
+          "fixed_duration",
+          "fixed_interval",
+          "user_checkpoint"
+        ],
+        "iterationEvidence": [
+          "health checks",
+          "non-mock precheck",
+          "traffic counts",
+          "CI/CD status",
+          "release evidence bundle",
+          "logs and artifacts",
+          "coverage matrix status",
+          "repair verification evidence",
+          "per-phase decision chain",
+          "iteration artifact references",
+          "state size guard result"
+        ],
+        "goalWindow": {
+          "required": true,
+          "fields": [
+            "finalGoal",
+            "phaseGoals",
+            "currentPhase",
+            "acceptanceCriteria",
+            "targetPlan",
+            "targetPlanConfirmation",
+            "reportCadence",
+            "finalDecision"
+          ],
+          "phaseGoalRequired": true,
+          "finalGoalRequired": true,
+          "acceptanceCriteriaRequired": true,
+          "finalDecisionRequired": true,
+          "confirmBeforeLoop": true,
+          "targetPlanRequired": true,
+          "targetPlanConfirmationRequired": true
+        },
+        "coverageMatrix": {
+          "required": true,
+          "fields": [
+            "capability",
+            "scenario",
+            "connectedProject",
+            "requiredEvidence",
+            "status",
+            "blocker",
+            "nextRepairAction"
+          ],
+          "statusValues": [
+            "PASS",
+            "FAIL",
+            "NOT_RUN",
+            "NOT_APPLICABLE",
+            "BLOCKED"
+          ],
+          "minimumRows": 1,
+          "repairRequiredOnRepeatBlocker": true
+        },
+        "repairPolicy": {
+          "required": true,
+          "repeatedBlockerThreshold": 2,
+          "actions": [
+            "diagnose",
+            "repair",
+            "verify",
+            "escalate",
+            "stop_blocked"
+          ],
+          "stopOnUnrepairable": true
+        },
+        "decisionChain": {
+          "required": true,
+          "fields": [
+            "phase",
+            "evidence",
+            "rule",
+            "options",
+            "decision",
+            "rationale",
+            "nextAction"
+          ],
+          "perPhaseRequired": true,
+          "printRequired": true
+        }
+      },
+      "runtimeAdapters": {
+        "codexGoal": {
+          "supported": true,
+          "outerGoal": "Drive a real production lifecycle validation goal to a GO, CONDITIONAL-GO, or NO-GO decision.",
+          "innerLoopAgent": "proofops-governor",
+          "stateArtifact": "data/proofops/<projectId>/loop-state.json",
+          "statusArtifact": "data/proofops/<projectId>/current-status.md",
+          "evidenceRoot": "data/proofops/<projectId>/evidence/",
+          "requiresFeature": "goals",
+          "resumePolicy": "Resume only after live process status and non-mock readiness are rechecked."
+        },
+        "shellRunner": {
+          "supported": true,
+          "stateArtifact": "data/proofops/<projectId>/loop-state.json"
+        }
+      },
+      "confirmationGates": [
+        "long-run start readiness",
+        "data cleanup scope",
+        "SCM/MR/PR action",
+        "release or publish action",
+        "GO/NO-GO decision",
+        "merge action",
+        "deployment action",
+        "tag or publish action"
+      ],
+      "dangerousActions": [
+        "data reset",
+        "service stop",
+        "long-running process start",
+        "code upgrade",
+        "release evidence API or artifact mutation",
+        "release",
+        "deployment",
+        "merge",
+        "tag",
+        "rollback"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "proofops-prs-web-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node tests/dashboard-contract.test.js",
+    "build": "node scripts/build.js",
+    "validate": "npm test && npm run build"
+  }
+}

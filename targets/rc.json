@@ -1,0 +1,37 @@
+{
+  "schema": "proofops-target-preset/v1",
+  "id": "rc",
+  "title": "Release Candidate",
+  "lifecycleTarget": "rc",
+  "description": "Harden a release candidate through multi-project validation, rollback proof, risk closure, compatibility notes, and durability evidence.",
+  "phaseTargets": [
+    "verify release candidate scope",
+    "run multi-project coverage matrix",
+    "validate rollback path",
+    "close high risks or mark NO-GO",
+    "produce release candidate report"
+  ],
+  "architectureCriteria": [
+    "upgrade and rollback paths are separated from normal runtime",
+    "audit and evidence stores are durable",
+    "compatibility and migration boundaries are documented"
+  ],
+  "runtimeCriteria": [
+    "representative or real projects reach terminal validation",
+    "rollback path is exercised through product APIs or release workflow",
+    "durability or soak evidence is collected for the requested scope"
+  ],
+  "releaseCriteria": [
+    "release notes and upgrade notes exist",
+    "high open risks are zero or explicitly accepted",
+    "final report states RC readiness"
+  ],
+  "requiredEvidence": [
+    "multi-project matrix",
+    "rollback proof",
+    "risk register",
+    "release notes",
+    "final report"
+  ],
+  "decisionVocabulary": ["GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"]
+}

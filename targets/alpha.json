@@ -1,0 +1,35 @@
+{
+  "schema": "proofops-target-preset/v1",
+  "id": "alpha",
+  "title": "Alpha",
+  "lifecycleTarget": "alpha",
+  "description": "Prepare an internally usable alpha with clear architecture boundaries, diagnosable failure modes, and a closed core workflow.",
+  "phaseTargets": [
+    "review architecture readiness",
+    "close the core workflow",
+    "document failure diagnosis and operator commands",
+    "produce an alpha decision report"
+  ],
+  "architectureCriteria": [
+    "runtime, adapters, and product data paths are separated",
+    "manual-only paths are identified",
+    "failure modes have owners and repair actions"
+  ],
+  "runtimeCriteria": [
+    "core workflow reaches terminal success in a controlled environment",
+    "logs and artifacts are discoverable",
+    "configuration does not require editing source code"
+  ],
+  "releaseCriteria": [
+    "alpha users can reproduce the workflow",
+    "remaining mock or demo-only paths are disclosed",
+    "final decision is GO, CONDITIONAL-GO, NO-GO, or BLOCKED"
+  ],
+  "requiredEvidence": [
+    "architecture review",
+    "core workflow transcript",
+    "diagnostic evidence",
+    "final report"
+  ],
+  "decisionVocabulary": ["GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"]
+}

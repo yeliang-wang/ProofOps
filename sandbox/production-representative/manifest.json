@@ -1,0 +1,155 @@
+{
+  "schema": "proofops-production-representative-sandbox/v1",
+  "id": "production-representative-sandbox",
+  "version": "1.0.0",
+  "purpose": "Reusable local production-representative project set for release coverage matrix loops when real customer production projects are not available.",
+  "releaseEvidenceRule": "Generated representative projects count only when they use real Git repositories, real validation commands, real target-product registration, real SCM, real CI/CD, real LLM/runtime boundaries, and persisted product-native evidence. Template-only, mock-only, fixture-only, smoke-only, or chat-only projects do not count as release evidence.",
+  "outputRoot": "data/production-representative-sandbox",
+  "requiredBoundaries": [
+    "git",
+    "target-product-registration",
+    "scm",
+    "ci-cd",
+    "llm-or-runtime",
+    "product-native-evidence"
+  ],
+  "projects": [
+    {
+      "id": "node-service",
+      "name": "Node Service Representative",
+      "template": "projects/node-service",
+      "language": "javascript",
+      "repository": {
+        "provider": "local-git",
+        "defaultBranch": "main"
+      },
+      "validation": {
+        "commands": [
+          "node src/server.test.js",
+          "node scripts/build.js"
+        ]
+      },
+      "cicd": {
+        "provider": "jenkins",
+        "job": "proofops-prs-node-service"
+      },
+      "coverageTags": [
+        "backend",
+        "api",
+        "configuration",
+        "ci-cd",
+        "code-upgrade"
+      ]
+    },
+    {
+      "id": "web-dashboard",
+      "name": "Web Dashboard Representative",
+      "template": "projects/web-dashboard",
+      "language": "javascript",
+      "repository": {
+        "provider": "local-git",
+        "defaultBranch": "main"
+      },
+      "validation": {
+        "commands": [
+          "node tests/dashboard-contract.test.js",
+          "node scripts/build.js"
+        ]
+      },
+      "cicd": {
+        "provider": "jenkins",
+        "job": "proofops-prs-web-dashboard"
+      },
+      "coverageTags": [
+        "frontend",
+        "dashboard",
+        "user-flow",
+        "artifact",
+        "ci-cd"
+      ]
+    },
+    {
+      "id": "mcp-tooling",
+      "name": "MCP Tooling Representative",
+      "template": "projects/mcp-tooling",
+      "language": "javascript",
+      "repository": {
+        "provider": "local-git",
+        "defaultBranch": "main"
+      },
+      "validation": {
+        "commands": [
+          "node tests/tool-contract.test.js",
+          "node scripts/build.js"
+        ]
+      },
+      "cicd": {
+        "provider": "jenkins",
+        "job": "proofops-prs-mcp-tooling"
+      },
+      "coverageTags": [
+        "mcp",
+        "tool-schema",
+        "agent-boundary",
+        "contract",
+        "ci-cd"
+      ]
+    },
+    {
+      "id": "data-pipeline",
+      "name": "Data Pipeline Representative",
+      "template": "projects/data-pipeline",
+      "language": "javascript",
+      "repository": {
+        "provider": "local-git",
+        "defaultBranch": "main"
+      },
+      "validation": {
+        "commands": [
+          "node tests/pipeline.test.js",
+          "node scripts/build.js"
+        ]
+      },
+      "cicd": {
+        "provider": "jenkins",
+        "job": "proofops-prs-data-pipeline"
+      },
+      "coverageTags": [
+        "data",
+        "evidence",
+        "audit",
+        "idempotency",
+        "ci-cd"
+      ]
+    },
+    {
+      "id": "flaky-quality-gate",
+      "name": "Quality Gate Representative",
+      "template": "projects/flaky-quality-gate",
+      "language": "javascript",
+      "repository": {
+        "provider": "local-git",
+        "defaultBranch": "main"
+      },
+      "validation": {
+        "commands": [
+          "node tests/quality-gate.test.js",
+          "node scripts/build.js"
+        ],
+        "faultInjectionCommand": "OCTOPUS_REPRESENTATIVE_FAULT=latency-regression node tests/quality-gate.test.js"
+      },
+      "cicd": {
+        "provider": "jenkins",
+        "job": "proofops-prs-quality-gate"
+      },
+      "coverageTags": [
+        "quality-gate",
+        "failure-containment",
+        "repair-verification",
+        "release-blocker",
+        "ci-cd"
+      ]
+    }
+  ],
+  "sharedByAgents": ["proofops-governor"]
+}

@@ -1,0 +1,36 @@
+{
+  "schema": "proofops-target-preset/v1",
+  "id": "beta",
+  "title": "Beta",
+  "lifecycleTarget": "beta",
+  "description": "Make a project verifiable on real target projects with non-mock prechecks, release coverage matrix evidence, and final beta readiness reports.",
+  "phaseTargets": [
+    "confirm target plan",
+    "run architecture readiness",
+    "run non-mock precheck",
+    "exercise at least one real external or product boundary",
+    "produce beta readiness final report"
+  ],
+  "architectureCriteria": [
+    "release coverage matrix can map to product capabilities",
+    "evidence and final reports are persisted outside transient chat",
+    "repair actions can be productized instead of rerun-only"
+  ],
+  "runtimeCriteria": [
+    "non-mock precheck reaches terminal status",
+    "at least one real LLM, SCM, CI/CD, or product API boundary is verified when applicable",
+    "health checks are not used as release evidence by themselves"
+  ],
+  "releaseCriteria": [
+    "public-beta gate passes",
+    "final report contains matrix status and decision chain",
+    "missing GA evidence is explicitly listed"
+  ],
+  "requiredEvidence": [
+    "non-mock precheck evidence",
+    "real boundary evidence",
+    "coverage matrix",
+    "final report"
+  ],
+  "decisionVocabulary": ["GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"]
+}

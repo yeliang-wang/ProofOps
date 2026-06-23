@@ -1,0 +1,11 @@
+pipeline {
+  agent any
+  stages {
+    stage('Validate') {
+      steps {
+        sh 'npm test'
+        sh 'npm run build'
+      }
+    }
+  }
+}

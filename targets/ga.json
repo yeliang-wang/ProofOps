@@ -1,0 +1,38 @@
+{
+  "schema": "proofops-target-preset/v1",
+  "id": "ga",
+  "title": "General Availability",
+  "lifecycleTarget": "ga",
+  "description": "Prove production-ready GA with product-native GO decisions, multiple real target projects, no high open risks, and stable GA release gates.",
+  "phaseTargets": [
+    "confirm GA target plan",
+    "verify architecture and runtime readiness",
+    "run scoped real-project release profiles",
+    "collect product-native release decisions",
+    "run stable GA gate"
+  ],
+  "architectureCriteria": [
+    "runtime, adapters, profiles, evidence, reports, and release decisions are versioned contracts",
+    "state resume, cleanup, rollback, audit, and observability are productionized",
+    "support and compatibility policies are documented"
+  ],
+  "runtimeCriteria": [
+    "multiple real target projects produce product-native GO decisions",
+    "representative profile reaches targetReached=true",
+    "LLM, SCM, CI/CD, rollback, approval, and product API boundaries are real where required"
+  ],
+  "releaseCriteria": [
+    "stable GA gate passes",
+    "scoped agents and plugins are production-ready",
+    "final reports are GO with targetReached=true",
+    "no high open risks remain"
+  ],
+  "requiredEvidence": [
+    "product-native GO decisions",
+    "real-project final reports",
+    "rollback evidence",
+    "support matrix",
+    "stable GA release-readiness output"
+  ],
+  "decisionVocabulary": ["GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"]
+}

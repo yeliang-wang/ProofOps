@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProofOps Project Profile",
+  "type": "object",
+  "required": ["schema", "projectId", "releaseTarget", "lifecycleId", "targetPlan", "targetPlanConfirmation", "runner"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": {
+      "const": "proofops-project-profile/v1"
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "releaseTarget": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lifecycleId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "projectRoot": {
+      "type": "string"
+    },
+    "targetPlan": {
+      "type": "object",
+      "required": ["finalGoal", "phaseGoals", "acceptanceCriteria", "finalDecision"],
+      "properties": {
+        "finalGoal": { "type": "string", "minLength": 1 },
+        "phaseGoals": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "acceptanceCriteria": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "finalDecision": { "type": "array", "items": { "type": "string" }, "minItems": 2 }
+      }
+    },
+    "targetPlanConfirmation": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["confirmed", "pending", "rejected"] },
+        "confirmedAt": { "type": "string" },
+        "confirmedBy": { "type": "string" },
+        "instruction": { "type": "string" }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "required": ["mode", "intervalMs"],
+      "properties": {
+        "mode": { "enum": ["continuous", "once"] },
+        "intervalMs": { "type": "integer", "minimum": 1000 },
+        "blockerPolicy": {
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["continue", "stop-on-required-blocker", "stop-on-repeated-blocker"] },
+            "repeatedThreshold": { "type": "integer", "minimum": 1 },
+            "reason": { "type": "string" },
+            "nextAction": { "type": "string" },
+            "exitCode": { "type": "integer" },
+            "repairWorkflows": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "types": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "product-defect",
+                      "repository-quality",
+                      "runtime-health",
+                      "external-ci-boundary",
+                      "scm-boundary",
+                      "llm-boundary",
+                      "soak-governance",
+                      "scenario-evidence-gap",
+                      "risk-closure",
+                      "coverage-evidence-gap",
+                      "release-criterion"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "finalReports": {
+          "type": "object",
+          "required": ["markdown", "json", "includeIterationTargetSummaries", "includeFinalTargetSummary"],
+          "properties": {
+            "markdown": { "type": "string", "minLength": 1 },
+            "json": { "type": "string", "minLength": 1 },
+            "includeIterationTargetSummaries": { "const": true },
+            "includeFinalTargetSummary": { "const": true }
+          }
+        }
+      }
+    },
+    "envFiles": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "command"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "command": { "type": "string", "minLength": 1 },
+          "args": { "type": "array", "items": { "type": "string" } },
+          "cwd": { "type": "string" },
+          "logFile": { "type": "string" },
+          "healthUrl": { "type": "string" },
+          "readyTimeoutMs": { "type": "integer", "minimum": 1000 },
+          "readyPollMs": { "type": "integer", "minimum": 100 },
+          "env": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "expect": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "requiredEvidence"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": {
+            "enum": ["health", "command", "http", "boundary", "sandbox-verify", "sandbox-register", "release-evidence", "release-decision"]
+          },
+          "capability": { "type": "string" },
+          "scenario": { "type": "string" },
+          "requiredEvidence": { "type": "string" },
+          "required": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

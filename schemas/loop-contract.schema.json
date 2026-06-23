@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://proofops.local/schemas/loop-contract.schema.json",
+  "title": "proofops loop contract",
+  "type": "object",
+  "required": [
+    "enabled",
+    "inputs",
+    "stateFields",
+    "stopPolicies",
+    "cadenceModes",
+    "iterationEvidence",
+    "goalWindow",
+    "coverageMatrix",
+    "repairPolicy",
+    "decisionChain",
+    "evidenceRequired",
+    "confirmationGatesPreserved"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "enabled": { "type": "boolean" },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "stateFields": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "stopPolicies": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_]*$"
+      }
+    },
+    "cadenceModes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_]*$"
+      }
+    },
+    "iterationEvidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "goalWindow": {
+      "type": "object",
+      "required": [
+        "required",
+        "fields",
+        "phaseGoalRequired",
+        "finalGoalRequired",
+        "acceptanceCriteriaRequired",
+        "finalDecisionRequired"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "fields": {
+          "type": "array",
+          "minItems": 5,
+          "items": { "type": "string", "minLength": 3 }
+        },
+        "phaseGoalRequired": { "type": "boolean" },
+        "finalGoalRequired": { "type": "boolean" },
+        "acceptanceCriteriaRequired": { "type": "boolean" },
+        "finalDecisionRequired": { "type": "boolean" }
+      }
+    },
+    "coverageMatrix": {
+      "type": "object",
+      "required": [
+        "required",
+        "fields",
+        "statusValues",
+        "minimumRows",
+        "repairRequiredOnRepeatBlocker"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "fields": {
+          "type": "array",
+          "minItems": 6,
+          "items": { "type": "string", "minLength": 3 }
+        },
+        "statusValues": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_-]*$"
+          }
+        },
+        "minimumRows": { "type": "integer", "minimum": 1 },
+        "repairRequiredOnRepeatBlocker": { "type": "boolean" }
+      }
+    },
+    "repairPolicy": {
+      "type": "object",
+      "required": [
+        "required",
+        "repeatedBlockerThreshold",
+        "actions",
+        "stopOnUnrepairable"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "repeatedBlockerThreshold": { "type": "integer", "minimum": 1 },
+        "actions": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_]*$"
+          }
+        },
+        "stopOnUnrepairable": { "type": "boolean" }
+      }
+    },
+    "decisionChain": {
+      "type": "object",
+      "required": [
+        "required",
+        "fields",
+        "perPhaseRequired",
+        "printRequired"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "fields": {
+          "type": "array",
+          "minItems": 6,
+          "items": { "type": "string", "minLength": 3 }
+        },
+        "perPhaseRequired": { "type": "boolean" },
+        "printRequired": { "type": "boolean" }
+      }
+    },
+    "evidenceRequired": { "type": "boolean" },
+    "confirmationGatesPreserved": { "type": "boolean" }
+  }
+}

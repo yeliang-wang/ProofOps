@@ -1,0 +1,54 @@
+{
+  "schema": "proofops-production-representative-target-profile/v1",
+  "id": "evopilot-release-matrix",
+  "target": "evopilot",
+  "purpose": "Register production-representative sandbox projects into EvoPilot for release coverage matrix loops.",
+  "projectRegistration": {
+    "endpoint": "/api/v1/projects",
+    "authTokenEnv": "EVOPILOT_API_TOKEN",
+    "dataRootEnv": "EVOPILOT_DATA_ROOT",
+    "dataRootEvidence": "projects/*.json",
+    "requiredValidationStatus": "VERIFIED"
+  },
+  "externalBoundaries": {
+    "gitlab": {
+      "tokenEnv": "GITLAB_TOKEN",
+      "baseUrlEnv": "GITLAB_BASE_URL",
+      "requiredForReleaseEvidence": true
+    },
+    "jenkins": {
+      "urlEnv": "JENKINS_URL",
+      "userEnv": "JENKINS_USER",
+      "tokenEnv": "JENKINS_TOKEN",
+      "requiredForReleaseEvidence": true
+    },
+    "llm": {
+      "providerEnv": "GLM_PROVIDER",
+      "apiKeyEnv": "GLM_API_KEY",
+      "modelEnv": "GLM_MODEL",
+      "requiredForReleaseEvidence": true
+    }
+  },
+  "coverageMatrixSeed": [
+    {
+      "capability": "project-registration",
+      "requiredEvidence": "POST /api/v1/projects plus GET /api/v1/projects shows every representative project as VERIFIED"
+    },
+    {
+      "capability": "ci-cd-boundary",
+      "requiredEvidence": "Jenkins job exists and reaches terminal status for every representative project"
+    },
+    {
+      "capability": "scm-boundary",
+      "requiredEvidence": "Each representative project has a real Git repository and reachable SCM metadata"
+    },
+    {
+      "capability": "llm-boundary",
+      "requiredEvidence": "Target product uses the configured real GLM provider during lifecycle planning or remediation"
+    },
+    {
+      "capability": "release-decision",
+      "requiredEvidence": "EvoPilot product-native release decision includes representative projects and terminal criteria"
+    }
+  ]
+}

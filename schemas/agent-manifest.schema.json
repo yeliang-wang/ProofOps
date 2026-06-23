@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://proofops.local/schemas/agent-manifest.schema.json",
+  "title": "proofops agent manifest",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "version",
+    "lifecycle",
+    "pluginId",
+    "category",
+    "source",
+    "distributions",
+    "native",
+    "purpose",
+    "boundaries",
+    "inputs",
+    "outputs",
+    "evidence",
+    "confirmationGates",
+    "dangerousActions",
+    "loopContract",
+    "runtimeAdapters",
+    "validation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "proofops-agent/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "lifecycle": {
+      "type": "string",
+      "enum": ["experimental", "beta", "production-ready"]
+    },
+    "pluginId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "category": {
+      "type": "string",
+      "minLength": 3
+    },
+    "source": {
+      "type": "object",
+      "required": ["claudeMarkdown"],
+      "additionalProperties": false,
+      "properties": {
+        "claudeMarkdown": {
+          "type": "string",
+          "pattern": "^agents/.*\\.md$"
+        }
+      }
+    },
+    "distributions": {
+      "type": "object",
+      "required": ["codexToml"],
+      "additionalProperties": false,
+      "properties": {
+        "codexToml": {
+          "type": "string",
+          "pattern": "^integrations/codex/agents/.*\\.toml$"
+        }
+      }
+    },
+    "native": {
+      "type": "object",
+      "required": ["model", "tools", "disallowedTools", "skills", "memory", "hooks", "allowedSpawnAgents"],
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "disallowedTools": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "memory": {
+          "type": "string",
+          "enum": ["none", "project", "user", "project-and-user"]
+        },
+        "hooks": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "allowedSpawnAgents": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+        }
+      }
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 20
+    },
+    "boundaries": {
+      "type": "object",
+      "required": ["allowed", "forbidden"],
+      "additionalProperties": false,
+      "properties": {
+        "allowed": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 3 }
+        },
+        "forbidden": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 3 }
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "confirmationGates": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "dangerousActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "loopContract": {
+      "$ref": "loop-contract.schema.json"
+    },
+    "runtimeAdapters": {
+      "type": "object",
+      "required": ["codexGoal"],
+      "additionalProperties": false,
+      "properties": {
+        "codexGoal": {
+          "type": "object",
+          "required": [
+            "supported",
+            "outerGoal",
+            "innerLoopAgent",
+            "stateArtifact",
+            "statusArtifact",
+            "evidenceRoot",
+            "requiresFeature",
+            "resumePolicy"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "supported": { "type": "boolean" },
+            "outerGoal": { "type": "string", "minLength": 20 },
+            "innerLoopAgent": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "stateArtifact": { "type": "string", "minLength": 10 },
+            "statusArtifact": { "type": "string", "minLength": 10 },
+            "evidenceRoot": { "type": "string", "minLength": 10 },
+            "requiresFeature": { "type": "string", "minLength": 1 },
+            "resumePolicy": { "type": "string", "minLength": 20 }
+          }
+        },
+        "shellRunner": {
+          "type": "object",
+          "required": ["supported", "stateArtifact"],
+          "additionalProperties": false,
+          "properties": {
+            "supported": { "type": "boolean" },
+            "stateArtifact": { "type": "string", "minLength": 10 }
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["requiredSections", "requiredPhrases"],
+      "additionalProperties": false,
+      "properties": {
+        "requiredSections": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 3 }
+        },
+        "requiredPhrases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 3 }
+        }
+      }
+    }
+  }
+}

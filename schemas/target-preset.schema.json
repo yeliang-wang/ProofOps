@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProofOps Target Preset",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "title",
+    "lifecycleTarget",
+    "description",
+    "phaseTargets",
+    "architectureCriteria",
+    "runtimeCriteria",
+    "releaseCriteria",
+    "requiredEvidence",
+    "decisionVocabulary"
+  ],
+  "properties": {
+    "schema": { "const": "proofops-target-preset/v1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "title": { "type": "string", "minLength": 3 },
+    "lifecycleTarget": {
+      "type": "string",
+      "enum": ["demo-to-alpha", "alpha", "beta", "rc", "ga"]
+    },
+    "description": { "type": "string", "minLength": 20 },
+    "phaseTargets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "architectureCriteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "runtimeCriteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "releaseCriteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "requiredEvidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "decisionVocabulary": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "type": "string", "enum": ["GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"] }
+    }
+  }
+}

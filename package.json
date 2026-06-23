@@ -1,0 +1,49 @@
+{
+  "name": "proofops",
+  "version": "0.1.0",
+  "description": "Evidence-first maturity and release governance for AI agent products.",
+  "scripts": {
+    "check": "python3 -m py_compile sandbox/proofops_sandbox.py sandbox/production-representative/scripts/create-projects.py sandbox/production-representative/scripts/create-jenkins-jobs.py sandbox/production-representative/scripts/register-target.py sandbox/production-representative/scripts/verify-sandbox.py scripts/propose-changes.py scripts/apply-proposal.py scripts/validate-toolkit.py scripts/proofops-control.py scripts/generate-distributions.py scripts/generate-catalog.py scripts/evaluate-agents.py scripts/release-readiness.py && node --check scripts/release-coverage-matrix-runner.mjs && bash -n scripts/install.sh && python3 scripts/validate-toolkit.py",
+    "validate": "python3 scripts/validate-toolkit.py",
+    "generate": "python3 scripts/generate-distributions.py && python3 scripts/generate-catalog.py",
+    "eval": "python3 scripts/evaluate-agents.py",
+    "release:check": "python3 scripts/release-readiness.py",
+    "release:check:ga": "python3 scripts/release-readiness.py --target stable-ga",
+    "proofops:list": "python3 scripts/proofops-control.py list",
+    "proofops:plugins": "python3 scripts/proofops-control.py plugins",
+    "proofops:search": "python3 scripts/proofops-control.py search",
+    "proofops:plan": "python3 scripts/proofops-control.py goal-plan",
+    "proofops:codex-status": "python3 scripts/proofops-control.py codex-status",
+    "proofops:install": "python3 scripts/proofops-control.py install",
+    "proofops:assess": "python3 scripts/proofops-control.py target-presets",
+    "sandbox:verify": "python3 sandbox/production-representative/scripts/verify-sandbox.py",
+    "release:runner": "node scripts/release-coverage-matrix-runner.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yeliang-wang/ProofOps.git"
+  },
+  "keywords": [
+    "proofops",
+    "release-governance",
+    "ga-readiness",
+    "evidence",
+    "agentops",
+    "claude-code",
+    "codex",
+    "subagents",
+    "agent-workflows",
+    "ai-coding",
+    "production-readiness"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/yeliang-wang/ProofOps/issues"
+  },
+  "homepage": "https://github.com/yeliang-wang/ProofOps#readme",
+  "devDependencies": {
+    "playwright": "^1.60.0"
+  }
+}

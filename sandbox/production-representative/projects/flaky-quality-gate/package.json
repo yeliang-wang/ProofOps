@@ -1,0 +1,12 @@
+{
+  "name": "proofops-prs-quality-gate",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node tests/quality-gate.test.js",
+    "build": "node scripts/build.js",
+    "validate": "npm test && npm run build",
+    "fault:latency": "OCTOPUS_REPRESENTATIVE_FAULT=latency-regression node tests/quality-gate.test.js"
+  }
+}

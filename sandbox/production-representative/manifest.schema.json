@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProofOps Production Representative Sandbox Manifest",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "version",
+    "purpose",
+    "releaseEvidenceRule",
+    "outputRoot",
+    "requiredBoundaries",
+    "projects",
+    "sharedByAgents"
+  ],
+  "properties": {
+    "schema": {
+      "const": "proofops-production-representative-sandbox/v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 20
+    },
+    "releaseEvidenceRule": {
+      "type": "string",
+      "minLength": 80
+    },
+    "outputRoot": {
+      "type": "string",
+      "minLength": 3
+    },
+    "requiredBoundaries": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "string"
+      }
+    },
+    "projects": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "template",
+          "language",
+          "repository",
+          "validation",
+          "cicd",
+          "coverageTags"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "repository": {
+            "type": "object",
+            "required": [
+              "provider",
+              "defaultBranch"
+            ]
+          },
+          "validation": {
+            "type": "object",
+            "required": [
+              "commands"
+            ]
+          },
+          "cicd": {
+            "type": "object",
+            "required": [
+              "provider",
+              "job"
+            ]
+          },
+          "coverageTags": {
+            "type": "array",
+            "minItems": 4,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "sharedByAgents": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

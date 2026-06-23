@@ -1,0 +1,133 @@
+# ProofOps
+
+ProofOps is an evidence-first maturity and release governance project for AI agent products and engineering automation systems.
+
+It helps a project move from demo, alpha, beta, or RC toward production-ready GA by turning the target into a reviewable plan, architecture readiness review, release coverage matrix, real-boundary evidence loop, productized repair cycle, final report, and explicit `GO`, `CONDITIONAL-GO`, `NO-GO`, or `BLOCKED` decision.
+
+ProofOps is not a general agent framework like LangGraph, CrewAI, or AutoGen. It is the governance layer above agent runtimes, coding agents, CI/CD, SCM, LLM providers, and product APIs.
+
+## Status
+
+ProofOps is currently `beta`.
+
+It has the independent project structure, agent/plugin contracts, target presets, generated Codex distribution, release coverage runner, release readiness gates, and CI workflow needed to be a GA candidate. It is not stable GA until scoped real-project profiles produce product-native `GO` decisions and `npm run release:check:ga` passes.
+
+## Core Agent
+
+| Agent | Purpose |
+| --- | --- |
+| `proofops-governor` | Evidence-first maturity and release governance from demo/alpha/beta/RC targets to GA decisions. |
+
+The canonical source is `agents/proofops-governor.md`. The generated Codex distribution is `integrations/codex/agents/proofops-governor.toml`.
+
+## What ProofOps Does
+
+ProofOps drives this lifecycle:
+
+```text
+discover
+  -> maturity assessment
+  -> architecture review
+  -> target preset selection
+  -> target plan confirmation
+  -> readiness
+  -> cleanup
+  -> non-mock precheck
+  -> evidence loop
+  -> productized repair
+  -> rollback and release evidence
+  -> final report
+  -> GO / CONDITIONAL-GO / NO-GO / BLOCKED
+```
+
+It refuses production claims backed only by mock, fake, stub, simulator, fixture-only, demo-only, smoke-only, or chat-only evidence.
+
+## Target Presets
+
+ProofOps includes fallback target presets under `targets/`:
+
+| Target | Use When |
+| --- | --- |
+| `demo-to-alpha` | A demo needs to become a repeatable engineering prototype. |
+| `alpha` | A project needs internal trial readiness. |
+| `beta` | A project needs real-project validation and public-beta evidence. |
+| `rc` | A project needs release-candidate hardening. |
+| `ga` | A project needs production-ready GA proof. |
+
+Product-native targets always win over presets. Presets only create the initial target plan when the product has no release target API or explicit target contract.
+
+## Architecture Readiness
+
+Every demo-to-production or beta-to-GA loop includes an architecture readiness phase. It checks whether the architecture can support the selected target, including runtime boundaries, adapters, state, resume, rollback, observability, evidence storage, release decisions, and productized repair paths.
+
+## Install
+
+Install dependencies:
+
+```bash
+npm ci
+```
+
+Validate the project:
+
+```bash
+npm run validate
+npm run check
+npm run generate -- --check
+npm run eval
+npm run release:check
+```
+
+Stable GA gate:
+
+```bash
+npm run release:check:ga
+```
+
+In beta, this command is expected to fail until scoped GA evidence is complete.
+
+## Codex Usage
+
+Render a target plan:
+
+```bash
+npm run proofops:plan -- \
+  --agent proofops-governor \
+  --project-id your-project \
+  "Move this demo project toward beta readiness with real evidence"
+```
+
+Install the generated Codex agent into a target project:
+
+```bash
+/Users/wangyejing/github/ProofOps/scripts/install.sh --tool codex --agent proofops-governor --update
+```
+
+## Project Profiles
+
+Release coverage profiles live under `project-profiles/examples/`. A profile defines services, boundaries, target plan, matrix steps, final report paths, and release decision behavior.
+
+Run a profile once:
+
+```bash
+npm run release:runner -- --profile project-profiles/examples/proofops.public-beta.json --once
+```
+
+## Release Gates
+
+`npm run release:check` is the public-beta gate. It checks package metadata, lifecycle state, target presets, loop contracts, generated distributions, deterministic eval, project-scoped install drift, release docs, support docs, and profile readiness.
+
+`npm run release:check:ga` is the stable GA gate. It requires scoped agents and plugins to be `production-ready` and every scoped project profile final report to be `GO` with `targetReached=true`.
+
+## Boundary
+
+ProofOps does not replace:
+
+- agent runtimes
+- coding agents
+- SCM providers
+- CI/CD systems
+- LLM providers
+- product-owned GA definitions
+
+ProofOps governs whether the target product has enough real evidence to advance to the requested maturity target.

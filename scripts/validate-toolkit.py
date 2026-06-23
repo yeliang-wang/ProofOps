@@ -1,0 +1,636 @@
+#!/usr/bin/env python3
+"""Validate ProofOps product contracts.
+
+The validator intentionally uses only Python's standard library so it can run
+before any project-specific dependency install. It checks the contract layer
+that turns agent instructions into auditable product artifacts.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback.
+    tomllib = None
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MANIFEST_DIR = REPO_ROOT / "manifests" / "agents"
+PLUGIN_DIR = REPO_ROOT / "plugins"
+AGENTS_DIR = REPO_ROOT / "agents"
+CODEX_AGENT_DIR = REPO_ROOT / "integrations" / "codex" / "agents"
+SCHEMA_DIR = REPO_ROOT / "schemas"
+CATALOG_DIR = REPO_ROOT / "catalog"
+PROJECT_PROFILE_DIR = REPO_ROOT / "project-profiles"
+TARGET_DIR = REPO_ROOT / "targets"
+PRODUCTION_REPRESENTATIVE_SANDBOX_DIR = REPO_ROOT / "sandbox" / "production-representative"
+AGENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+PRODUCTION_REPRESENTATIVE_PROJECTS = {
+    "node-service",
+    "web-dashboard",
+    "mcp-tooling",
+    "data-pipeline",
+    "flaky-quality-gate",
+}
+PRODUCTION_REPRESENTATIVE_BOUNDARIES = {
+    "git",
+    "target-product-registration",
+    "scm",
+    "ci-cd",
+    "llm-or-runtime",
+    "product-native-evidence",
+}
+PRODUCTION_RELEASE_RULE_SECTION = "Platform-Wide Production Release Rule"
+PRODUCTION_RELEASE_RULE_PHRASES = [
+    "Smoke checks may prove connectivity only",
+    "product-native release evidence",
+    "NO-GO",
+    "summary state only",
+    "externalized to iteration artifacts",
+    "state size guard",
+]
+LOOP_GOAL_WINDOW_SECTION = "Loop Goal Window"
+RELEASE_COVERAGE_MATRIX_SECTION = "Release Coverage Matrix Loop"
+LOOP_GOAL_WINDOW_FIELDS = [
+    "finalGoal",
+    "phaseGoals",
+    "currentPhase",
+    "acceptanceCriteria",
+    "targetPlan",
+    "targetPlanConfirmation",
+    "reportCadence",
+    "finalDecision",
+]
+RELEASE_COVERAGE_FIELDS = [
+    "coverageMatrix",
+    "iterationPlan",
+    "evidenceMap",
+    "blockerPolicy",
+    "repairPolicy",
+    "releaseDecision",
+    "decisionChain",
+]
+NON_PRODUCTION_RELEASE_EVIDENCE_TOOL = "non-production-release-evidence"
+NON_PRODUCTION_RELEASE_EVIDENCE_FORBIDDEN = (
+    "Use mock, fake, stub, simulator, fixture-only, demo-only, smoke-only, "
+    "or chat-only evidence as production release evidence"
+)
+
+
+class ValidationError(Exception):
+    pass
+
+
+def rel(path: Path) -> str:
+    try:
+        return path.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def read_json(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValidationError(f"{rel(path)}: invalid JSON: {exc}") from exc
+
+
+def parse_frontmatter(path: Path) -> tuple[dict[str, str], str]:
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        raise ValidationError(f"{rel(path)}: missing YAML frontmatter")
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        raise ValidationError(f"{rel(path)}: unterminated YAML frontmatter")
+    metadata: dict[str, str] = {}
+    for line in text[4:end].splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if ":" not in line:
+            raise ValidationError(f"{rel(path)}: unsupported frontmatter line: {line}")
+        key, value = line.split(":", 1)
+        metadata[key.strip()] = value.strip().strip('"')
+    return metadata, text[end + 5 :]
+
+
+def parse_toml(path: Path) -> dict:
+    text = path.read_text(encoding="utf-8")
+    if tomllib is None:
+        return parse_simple_toml_strings(path, text)
+    try:
+        return tomllib.loads(text)
+    except Exception as exc:
+        raise ValidationError(f"{rel(path)}: invalid TOML: {exc}") from exc
+
+
+def parse_simple_toml_strings(path: Path, text: str) -> dict:
+    """Parse the top-level string fields used by Codex agent TOML files."""
+    data: dict[str, str] = {}
+    index = 0
+    lines = text.splitlines()
+    while index < len(lines):
+        line = lines[index]
+        index += 1
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$", stripped)
+        if not match:
+            continue
+        key, raw_value = match.groups()
+        if raw_value == '"""':
+            block: list[str] = []
+            while index < len(lines):
+                current = lines[index]
+                index += 1
+                if current.strip() == '"""':
+                    break
+                block.append(current)
+            else:
+                raise ValidationError(f"{rel(path)}: unterminated multiline string for {key}")
+            data[key] = "\n".join(block)
+        elif raw_value.startswith('"') and raw_value.endswith('"'):
+            data[key] = raw_value[1:-1]
+    return data
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise ValidationError(message)
+
+
+def validate_schema_files() -> None:
+    required = [
+        "agent-manifest.schema.json",
+        "eval-result.schema.json",
+        "loop-contract.schema.json",
+        "plugin-manifest.schema.json",
+        "project-profile.schema.json",
+        "proposal.schema.json",
+        "run-summary.schema.json",
+        "target-preset.schema.json",
+    ]
+    for name in required:
+        path = SCHEMA_DIR / name
+        require(path.exists(), f"{rel(path)}: schema file missing")
+        schema = read_json(path)
+        require(schema.get("$schema"), f"{rel(path)}: missing $schema")
+        require(schema.get("title"), f"{rel(path)}: missing title")
+
+
+def validate_target_presets() -> None:
+    expected = {"demo-to-alpha", "alpha", "beta", "rc", "ga"}
+    require(TARGET_DIR.exists(), f"{rel(TARGET_DIR)}: target preset directory missing")
+    paths = sorted(TARGET_DIR.glob("*.json"))
+    found = {path.stem for path in paths}
+    require(found == expected, f"{rel(TARGET_DIR)}: expected target presets {sorted(expected)}, found {sorted(found)}")
+    for path in paths:
+        preset = read_json(path)
+        require(preset.get("schema") == "proofops-target-preset/v1", f"{rel(path)}: invalid schema")
+        require(preset.get("id") == path.stem, f"{rel(path)}: id must match filename")
+        require(preset.get("lifecycleTarget") in expected, f"{rel(path)}: invalid lifecycleTarget")
+        for key in [
+            "phaseTargets",
+            "architectureCriteria",
+            "runtimeCriteria",
+            "releaseCriteria",
+            "requiredEvidence",
+            "decisionVocabulary",
+        ]:
+            require(isinstance(preset.get(key), list) and preset[key], f"{rel(path)}: {key} must be a non-empty list")
+        for decision in ["GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"]:
+            require(decision in preset["decisionVocabulary"], f"{rel(path)}: decisionVocabulary missing {decision}")
+
+
+def validate_production_representative_sandbox() -> None:
+    root = PRODUCTION_REPRESENTATIVE_SANDBOX_DIR
+    manifest_path = root / "manifest.json"
+    schema_path = root / "manifest.schema.json"
+    evopilot_profile_path = root / "profiles" / "evopilot.release-matrix.json"
+    require(root.exists(), f"{rel(root)}: production representative sandbox missing")
+    require(manifest_path.exists(), f"{rel(manifest_path)}: sandbox manifest missing")
+    require(schema_path.exists(), f"{rel(schema_path)}: sandbox schema missing")
+    require(evopilot_profile_path.exists(), f"{rel(evopilot_profile_path)}: EvoPilot target profile missing")
+
+    manifest = read_json(manifest_path)
+    require(manifest.get("schema") == "proofops-production-representative-sandbox/v1", f"{rel(manifest_path)}: invalid schema")
+    require(manifest.get("id") == "production-representative-sandbox", f"{rel(manifest_path)}: invalid id")
+    require(bool(VERSION_RE.match(str(manifest.get("version", "")))), f"{rel(manifest_path)}: invalid version")
+    release_rule = str(manifest.get("releaseEvidenceRule", ""))
+    for phrase in ["real Git repositories", "real validation commands", "real target-product registration", "real SCM", "real CI/CD", "real LLM/runtime boundaries", "product-native evidence", "mock-only", "smoke-only"]:
+        require(phrase in release_rule, f"{rel(manifest_path)}: releaseEvidenceRule missing {phrase}")
+
+    boundaries = set(manifest.get("requiredBoundaries", []))
+    require(PRODUCTION_REPRESENTATIVE_BOUNDARIES.issubset(boundaries), f"{rel(manifest_path)}: requiredBoundaries incomplete")
+    project_ids = {project.get("id") for project in manifest.get("projects", [])}
+    require(PRODUCTION_REPRESENTATIVE_PROJECTS.issubset(project_ids), f"{rel(manifest_path)}: representative project set incomplete")
+    require(set(manifest.get("sharedByAgents", [])) == {path.stem for path in MANIFEST_DIR.glob("*.json")}, f"{rel(manifest_path)}: sharedByAgents must match packaged agents")
+
+    for project in manifest["projects"]:
+        project_path = root / project["template"]
+        require(project_path.exists(), f"{rel(project_path)}: project template missing")
+        require((project_path / "package.json").exists(), f"{rel(project_path)}: package.json missing")
+        require((project_path / "Jenkinsfile").exists(), f"{rel(project_path)}: Jenkinsfile missing")
+        commands = project.get("validation", {}).get("commands", [])
+        require(isinstance(commands, list) and len(commands) >= 2, f"{rel(manifest_path)}: {project['id']} needs at least two validation commands")
+        tags = project.get("coverageTags", [])
+        require(isinstance(tags, list) and len(tags) >= 4, f"{rel(manifest_path)}: {project['id']} needs coverage tags")
+        require(project.get("repository", {}).get("provider") == "local-git", f"{rel(manifest_path)}: {project['id']} repository.provider must be local-git")
+        require(project.get("cicd", {}).get("provider") == "jenkins", f"{rel(manifest_path)}: {project['id']} cicd.provider must be jenkins")
+
+    profile = read_json(evopilot_profile_path)
+    require(profile.get("schema") == "proofops-production-representative-target-profile/v1", f"{rel(evopilot_profile_path)}: invalid profile schema")
+    require(profile.get("target") == "evopilot", f"{rel(evopilot_profile_path)}: profile target must be evopilot")
+    registration = profile.get("projectRegistration", {})
+    require(registration.get("endpoint") == "/api/v1/projects", f"{rel(evopilot_profile_path)}: EvoPilot registration endpoint must be /api/v1/projects")
+    for boundary in ["gitlab", "jenkins", "llm"]:
+        require(profile.get("externalBoundaries", {}).get(boundary, {}).get("requiredForReleaseEvidence") is True, f"{rel(evopilot_profile_path)}: {boundary} must be required for release evidence")
+
+
+def validate_project_profiles() -> None:
+    require(PROJECT_PROFILE_DIR.exists(), f"{rel(PROJECT_PROFILE_DIR)}: project profile directory missing")
+    profiles = sorted(PROJECT_PROFILE_DIR.glob("**/*.json"))
+    require(profiles, f"{rel(PROJECT_PROFILE_DIR)}: at least one project profile example is required")
+    for path in profiles:
+      profile = read_json(path)
+      require(profile.get("schema") == "proofops-project-profile/v1", f"{rel(path)}: invalid schema")
+      for key in ["projectId", "releaseTarget", "lifecycleId", "targetPlan", "targetPlanConfirmation", "runner", "steps"]:
+          require(key in profile, f"{rel(path)}: missing {key}")
+      target_plan = profile["targetPlan"]
+      for key in ["finalGoal", "phaseGoals", "acceptanceCriteria", "finalDecision"]:
+          require(key in target_plan, f"{rel(path)}: targetPlan missing {key}")
+      require(isinstance(target_plan["phaseGoals"], list) and target_plan["phaseGoals"], f"{rel(path)}: targetPlan.phaseGoals must be non-empty")
+      require(isinstance(target_plan["acceptanceCriteria"], list) and target_plan["acceptanceCriteria"], f"{rel(path)}: targetPlan.acceptanceCriteria must be non-empty")
+      require(profile["targetPlanConfirmation"].get("status") == "confirmed", f"{rel(path)}: example profile must include confirmed targetPlanConfirmation")
+      require(profile["runner"].get("mode") in {"continuous", "once"}, f"{rel(path)}: runner.mode must be continuous or once")
+      final_reports = profile["runner"].get("finalReports", {})
+      require(final_reports.get("markdown", "").endswith("final-report.md"), f"{rel(path)}: runner.finalReports.markdown must end with final-report.md")
+      require(final_reports.get("json", "").endswith("final-report.json"), f"{rel(path)}: runner.finalReports.json must end with final-report.json")
+      require(final_reports.get("includeIterationTargetSummaries") is True, f"{rel(path)}: runner.finalReports.includeIterationTargetSummaries must be true")
+      require(final_reports.get("includeFinalTargetSummary") is True, f"{rel(path)}: runner.finalReports.includeFinalTargetSummary must be true")
+      validate_project_profile_services(path, profile.get("services", []))
+      steps = profile["steps"]
+      require(isinstance(steps, list) and steps, f"{rel(path)}: steps must be non-empty")
+      seen_step_ids = set()
+      for step in steps:
+          step_id = step.get("id")
+          require(isinstance(step_id, str) and step_id, f"{rel(path)}: step.id is required")
+          require(step_id not in seen_step_ids, f"{rel(path)}: duplicate step id {step_id}")
+          seen_step_ids.add(step_id)
+          require(step.get("type") in {"health", "command", "http", "boundary", "sandbox-verify", "sandbox-register", "release-evidence", "release-decision"}, f"{rel(path)}: invalid step type for {step_id}")
+          require(isinstance(step.get("requiredEvidence"), str) and step["requiredEvidence"], f"{rel(path)}: step {step_id} missing requiredEvidence")
+      has_release_decision_step = any(step.get("type") == "release-decision" for step in steps)
+      release_decision_mode = profile.get("releaseDecision", {}).get("mode")
+      require(
+          has_release_decision_step or release_decision_mode == "profile-final-report",
+          f"{rel(path)}: project profile requires a release-decision step or releaseDecision.mode=profile-final-report",
+      )
+
+
+def validate_project_profile_services(path: Path, services: object) -> None:
+    require(isinstance(services, list), f"{rel(path)}: services must be a list when present")
+    seen_service_ids = set()
+    for service in services:
+        require(isinstance(service, dict), f"{rel(path)}: each service must be an object")
+        service_id = service.get("id")
+        require(isinstance(service_id, str) and service_id, f"{rel(path)}: service.id is required")
+        require(service_id not in seen_service_ids, f"{rel(path)}: duplicate service id {service_id}")
+        seen_service_ids.add(service_id)
+        require(isinstance(service.get("command"), str) and service["command"], f"{rel(path)}: service {service_id} missing command")
+        require(isinstance(service.get("args", []), list), f"{rel(path)}: service {service_id} args must be a list")
+        require(isinstance(service.get("env", {}), dict), f"{rel(path)}: service {service_id} env must be an object")
+        if service.get("healthUrl") is not None:
+            require(str(service["healthUrl"]).startswith(("http://", "https://")), f"{rel(path)}: service {service_id} healthUrl must be HTTP(S)")
+        if service.get("logFile") is not None:
+            require(isinstance(service["logFile"], str) and service["logFile"], f"{rel(path)}: service {service_id} logFile must be non-empty")
+
+
+def validate_manifest_shape(path: Path, manifest: dict) -> None:
+    required = [
+        "schema",
+        "id",
+        "version",
+        "lifecycle",
+        "pluginId",
+        "category",
+        "source",
+        "distributions",
+        "native",
+        "purpose",
+        "boundaries",
+        "inputs",
+        "outputs",
+        "evidence",
+        "confirmationGates",
+        "dangerousActions",
+        "loopContract",
+        "runtimeAdapters",
+        "validation",
+    ]
+    for key in required:
+        require(key in manifest, f"{rel(path)}: missing required key {key}")
+
+    agent_id = manifest["id"]
+    require(manifest["schema"] == "proofops-agent/v1", f"{rel(path)}: unsupported schema")
+    require(bool(AGENT_ID_RE.match(agent_id)), f"{rel(path)}: invalid agent id {agent_id!r}")
+    require(path.name == f"{agent_id}.json", f"{rel(path)}: filename must match id")
+    require(bool(VERSION_RE.match(manifest["version"])), f"{rel(path)}: invalid semantic version")
+    require(manifest["lifecycle"] in {"experimental", "beta", "production-ready"}, f"{rel(path)}: invalid lifecycle")
+    require(bool(AGENT_ID_RE.match(manifest["pluginId"])), f"{rel(path)}: invalid pluginId")
+    require(isinstance(manifest["category"], str) and len(manifest["category"]) >= 3, f"{rel(path)}: category is required")
+    require(len(manifest["purpose"]) >= 20, f"{rel(path)}: purpose is too short")
+
+    native = manifest["native"]
+    for key in ["model", "tools", "disallowedTools", "skills", "memory", "hooks", "allowedSpawnAgents"]:
+        require(key in native, f"{rel(path)}: native.{key} is required")
+    require(native["memory"] in {"none", "project", "user", "project-and-user"}, f"{rel(path)}: invalid native.memory")
+    require(
+        NON_PRODUCTION_RELEASE_EVIDENCE_TOOL in native["disallowedTools"],
+        f"{rel(path)}: native.disallowedTools must include {NON_PRODUCTION_RELEASE_EVIDENCE_TOOL}",
+    )
+
+    for list_key in ["inputs", "outputs", "evidence"]:
+        value = manifest[list_key]
+        require(isinstance(value, list) and value, f"{rel(path)}: {list_key} must be a non-empty list")
+
+    boundaries = manifest["boundaries"]
+    require(isinstance(boundaries.get("allowed"), list) and boundaries["allowed"], f"{rel(path)}: boundaries.allowed is required")
+    require(isinstance(boundaries.get("forbidden"), list) and boundaries["forbidden"], f"{rel(path)}: boundaries.forbidden is required")
+    require(
+        NON_PRODUCTION_RELEASE_EVIDENCE_FORBIDDEN in boundaries["forbidden"],
+        f"{rel(path)}: boundaries.forbidden missing platform-wide production release rule",
+    )
+
+    validation = manifest["validation"]
+    require(isinstance(validation.get("requiredSections"), list) and validation["requiredSections"], f"{rel(path)}: validation.requiredSections is required")
+    require(isinstance(validation.get("requiredPhrases"), list), f"{rel(path)}: validation.requiredPhrases must be a list")
+    require(PRODUCTION_RELEASE_RULE_SECTION in validation["requiredSections"], f"{rel(path)}: validation.requiredSections missing {PRODUCTION_RELEASE_RULE_SECTION}")
+    for phrase in PRODUCTION_RELEASE_RULE_PHRASES:
+        require(phrase in validation["requiredPhrases"], f"{rel(path)}: validation.requiredPhrases missing {phrase}")
+
+    validate_loop_contract(path, manifest)
+
+
+def validate_string_list(path: Path, value: object, key: str, min_items: int = 1) -> list[str]:
+    require(isinstance(value, list) and len(value) >= min_items, f"{rel(path)}: {key} must have at least {min_items} item(s)")
+    for item in value:
+        require(isinstance(item, str) and len(item) >= 3, f"{rel(path)}: {key} contains invalid item {item!r}")
+    return value
+
+
+def validate_loop_contract(path: Path, manifest: dict) -> None:
+    loop_contract = manifest["loopContract"]
+    require(isinstance(loop_contract, dict), f"{rel(path)}: loopContract must be an object")
+    for key in ["enabled", "inputs", "stateFields", "stopPolicies", "cadenceModes", "iterationEvidence", "goalWindow", "coverageMatrix", "repairPolicy", "decisionChain", "evidenceRequired", "confirmationGatesPreserved"]:
+        require(key in loop_contract, f"{rel(path)}: loopContract.{key} is required")
+    require(loop_contract["enabled"] is True, f"{rel(path)}: loopContract.enabled must be true for packaged agents")
+    require(loop_contract["evidenceRequired"] is True, f"{rel(path)}: loopContract.evidenceRequired must be true")
+    require(loop_contract["confirmationGatesPreserved"] is True, f"{rel(path)}: loopContract.confirmationGatesPreserved must be true")
+    loop_inputs = validate_string_list(path, loop_contract["inputs"], "loopContract.inputs")
+    state_fields = validate_string_list(path, loop_contract["stateFields"], "loopContract.stateFields", min_items=5)
+    stop_policies = validate_string_list(path, loop_contract["stopPolicies"], "loopContract.stopPolicies", min_items=3)
+    validate_string_list(path, loop_contract["cadenceModes"], "loopContract.cadenceModes")
+    validate_string_list(path, loop_contract["iterationEvidence"], "loopContract.iterationEvidence")
+    for required_field in ["goal", "blocker", "nextAction", "stopCondition"]:
+        require(required_field in state_fields, f"{rel(path)}: loopContract.stateFields missing {required_field}")
+    for required_input in ["goal", "loopCadence", "stopCondition"]:
+        require(required_input in loop_inputs, f"{rel(path)}: loopContract.inputs missing {required_input}")
+    for required_field in LOOP_GOAL_WINDOW_FIELDS:
+        require(required_field in state_fields, f"{rel(path)}: loopContract.stateFields missing goal window field {required_field}")
+    for required_input in ["finalGoal", "phaseGoals", "acceptanceCriteria", "targetPlan", "targetPlanConfirmation", "reportCadence", "finalDecision"]:
+        require(required_input in loop_inputs, f"{rel(path)}: loopContract.inputs missing goal window input {required_input}")
+    for required_field in RELEASE_COVERAGE_FIELDS:
+        require(required_field in state_fields, f"{rel(path)}: loopContract.stateFields missing release coverage field {required_field}")
+    for required_input in RELEASE_COVERAGE_FIELDS:
+        require(required_input in loop_inputs, f"{rel(path)}: loopContract.inputs missing release coverage input {required_input}")
+    goal_window = loop_contract["goalWindow"]
+    require(isinstance(goal_window, dict), f"{rel(path)}: loopContract.goalWindow must be an object")
+    for key in ["required", "fields", "phaseGoalRequired", "finalGoalRequired", "acceptanceCriteriaRequired", "targetPlanRequired", "targetPlanConfirmationRequired", "confirmBeforeLoop", "finalDecisionRequired"]:
+        require(key in goal_window, f"{rel(path)}: loopContract.goalWindow.{key} is required")
+    require(goal_window["required"] is True, f"{rel(path)}: loopContract.goalWindow.required must be true")
+    require(goal_window["phaseGoalRequired"] is True, f"{rel(path)}: loopContract.goalWindow.phaseGoalRequired must be true")
+    require(goal_window["finalGoalRequired"] is True, f"{rel(path)}: loopContract.goalWindow.finalGoalRequired must be true")
+    require(goal_window["acceptanceCriteriaRequired"] is True, f"{rel(path)}: loopContract.goalWindow.acceptanceCriteriaRequired must be true")
+    require(goal_window["targetPlanRequired"] is True, f"{rel(path)}: loopContract.goalWindow.targetPlanRequired must be true")
+    require(goal_window["targetPlanConfirmationRequired"] is True, f"{rel(path)}: loopContract.goalWindow.targetPlanConfirmationRequired must be true")
+    require(goal_window["confirmBeforeLoop"] is True, f"{rel(path)}: loopContract.goalWindow.confirmBeforeLoop must be true")
+    require(goal_window["finalDecisionRequired"] is True, f"{rel(path)}: loopContract.goalWindow.finalDecisionRequired must be true")
+    goal_window_fields = validate_string_list(path, goal_window["fields"], "loopContract.goalWindow.fields", min_items=6)
+    for required_field in LOOP_GOAL_WINDOW_FIELDS:
+        require(required_field in goal_window_fields, f"{rel(path)}: loopContract.goalWindow.fields missing {required_field}")
+    coverage_matrix = loop_contract["coverageMatrix"]
+    require(isinstance(coverage_matrix, dict), f"{rel(path)}: loopContract.coverageMatrix must be an object")
+    for key in ["required", "fields", "statusValues", "minimumRows", "repairRequiredOnRepeatBlocker"]:
+        require(key in coverage_matrix, f"{rel(path)}: loopContract.coverageMatrix.{key} is required")
+    require(coverage_matrix["required"] is True, f"{rel(path)}: loopContract.coverageMatrix.required must be true")
+    require(coverage_matrix["repairRequiredOnRepeatBlocker"] is True, f"{rel(path)}: loopContract.coverageMatrix.repairRequiredOnRepeatBlocker must be true")
+    require(isinstance(coverage_matrix["minimumRows"], int) and coverage_matrix["minimumRows"] >= 1, f"{rel(path)}: loopContract.coverageMatrix.minimumRows must be >= 1")
+    coverage_fields = validate_string_list(path, coverage_matrix["fields"], "loopContract.coverageMatrix.fields", min_items=6)
+    for required_field in ["capability", "scenario", "requiredEvidence", "status", "blocker", "nextRepairAction"]:
+        require(required_field in coverage_fields, f"{rel(path)}: loopContract.coverageMatrix.fields missing {required_field}")
+    status_values = validate_string_list(path, coverage_matrix["statusValues"], "loopContract.coverageMatrix.statusValues", min_items=4)
+    for required_status in ["PASS", "FAIL", "NOT_RUN", "BLOCKED"]:
+        require(required_status in status_values, f"{rel(path)}: loopContract.coverageMatrix.statusValues missing {required_status}")
+    repair_policy = loop_contract["repairPolicy"]
+    require(isinstance(repair_policy, dict), f"{rel(path)}: loopContract.repairPolicy must be an object")
+    for key in ["required", "repeatedBlockerThreshold", "actions", "stopOnUnrepairable"]:
+        require(key in repair_policy, f"{rel(path)}: loopContract.repairPolicy.{key} is required")
+    require(repair_policy["required"] is True, f"{rel(path)}: loopContract.repairPolicy.required must be true")
+    require(isinstance(repair_policy["repeatedBlockerThreshold"], int) and repair_policy["repeatedBlockerThreshold"] >= 1, f"{rel(path)}: loopContract.repairPolicy.repeatedBlockerThreshold must be >= 1")
+    repair_actions = validate_string_list(path, repair_policy["actions"], "loopContract.repairPolicy.actions", min_items=3)
+    for required_action in ["diagnose", "repair", "verify"]:
+        require(required_action in repair_actions, f"{rel(path)}: loopContract.repairPolicy.actions missing {required_action}")
+    require(repair_policy["stopOnUnrepairable"] is True, f"{rel(path)}: loopContract.repairPolicy.stopOnUnrepairable must be true")
+    decision_chain = loop_contract["decisionChain"]
+    require(isinstance(decision_chain, dict), f"{rel(path)}: loopContract.decisionChain must be an object")
+    for key in ["required", "fields", "perPhaseRequired", "printRequired"]:
+        require(key in decision_chain, f"{rel(path)}: loopContract.decisionChain.{key} is required")
+    require(decision_chain["required"] is True, f"{rel(path)}: loopContract.decisionChain.required must be true")
+    require(decision_chain["perPhaseRequired"] is True, f"{rel(path)}: loopContract.decisionChain.perPhaseRequired must be true")
+    require(decision_chain["printRequired"] is True, f"{rel(path)}: loopContract.decisionChain.printRequired must be true")
+    decision_chain_fields = validate_string_list(path, decision_chain["fields"], "loopContract.decisionChain.fields", min_items=6)
+    for required_field in ["phase", "evidence", "rule", "options", "decision", "nextAction"]:
+        require(required_field in decision_chain_fields, f"{rel(path)}: loopContract.decisionChain.fields missing {required_field}")
+    for policy in stop_policies:
+        require(bool(re.match(r"^[a-z0-9][a-z0-9_]*$", policy)), f"{rel(path)}: invalid loop stop policy {policy!r}")
+    require("pending_target_plan_confirmation" in stop_policies, f"{rel(path)}: loopContract.stopPolicies missing pending_target_plan_confirmation")
+
+    adapters = manifest["runtimeAdapters"]
+    require(isinstance(adapters, dict), f"{rel(path)}: runtimeAdapters must be an object")
+    require("codexGoal" in adapters, f"{rel(path)}: runtimeAdapters.codexGoal is required")
+    codex_goal = adapters["codexGoal"]
+    for key in ["supported", "outerGoal", "innerLoopAgent", "stateArtifact", "statusArtifact", "evidenceRoot", "requiresFeature", "resumePolicy"]:
+        require(key in codex_goal, f"{rel(path)}: runtimeAdapters.codexGoal.{key} is required")
+    require(codex_goal["supported"] is True, f"{rel(path)}: runtimeAdapters.codexGoal.supported must be true")
+    require(codex_goal["innerLoopAgent"] == manifest["id"], f"{rel(path)}: runtimeAdapters.codexGoal.innerLoopAgent must match id")
+    require(codex_goal["requiresFeature"] == "goals", f"{rel(path)}: runtimeAdapters.codexGoal.requiresFeature must be goals")
+    for key in ["outerGoal", "resumePolicy"]:
+        require(isinstance(codex_goal[key], str) and len(codex_goal[key]) >= 20, f"{rel(path)}: runtimeAdapters.codexGoal.{key} is too short")
+    for key in ["stateArtifact", "statusArtifact", "evidenceRoot"]:
+        value = codex_goal[key]
+        require(isinstance(value, str) and value.startswith("data/"), f"{rel(path)}: runtimeAdapters.codexGoal.{key} must be under data/")
+    require(codex_goal["stateArtifact"].endswith("loop-state.json"), f"{rel(path)}: runtimeAdapters.codexGoal.stateArtifact must end with loop-state.json")
+    require(codex_goal["statusArtifact"].endswith("current-status.md"), f"{rel(path)}: runtimeAdapters.codexGoal.statusArtifact must end with current-status.md")
+    require(codex_goal["evidenceRoot"].endswith("/"), f"{rel(path)}: runtimeAdapters.codexGoal.evidenceRoot must end with /")
+    if "shellRunner" in adapters:
+        shell_runner = adapters["shellRunner"]
+        require(shell_runner.get("supported") is True, f"{rel(path)}: runtimeAdapters.shellRunner.supported must be true when present")
+        require(str(shell_runner.get("stateArtifact", "")).startswith("data/"), f"{rel(path)}: runtimeAdapters.shellRunner.stateArtifact must be under data/")
+
+
+def validate_agent_files(path: Path, manifest: dict) -> None:
+    source = REPO_ROOT / manifest["source"]["claudeMarkdown"]
+    codex = REPO_ROOT / manifest["distributions"]["codexToml"]
+    require(source.exists(), f"{rel(path)}: source file missing: {rel(source)}")
+    require(codex.exists(), f"{rel(path)}: codex distribution missing: {rel(codex)}")
+
+    frontmatter, markdown_body = parse_frontmatter(source)
+    require(frontmatter.get("name") == manifest["id"], f"{rel(source)}: frontmatter name does not match manifest id")
+    require(frontmatter.get("description"), f"{rel(source)}: frontmatter description is required")
+
+    codex_data = parse_toml(codex)
+    require(codex_data.get("name") == manifest["id"], f"{rel(codex)}: TOML name does not match manifest id")
+    require(codex_data.get("description"), f"{rel(codex)}: TOML description is required")
+    require(codex_data.get("developer_instructions"), f"{rel(codex)}: developer_instructions is required")
+    codex_instructions = str(codex_data.get("developer_instructions") or "")
+
+    for section in manifest["validation"]["requiredSections"]:
+        require(f"## {section}" in markdown_body or f"### {section}" in markdown_body, f"{rel(source)}: required section missing: {section}")
+
+    if manifest["loopContract"]["enabled"]:
+        require("## Goal-Driven Loop Mode" in markdown_body, f"{rel(source)}: loopContract requires Goal-Driven Loop Mode")
+        require("## Codex Goal Runtime Adapter" in codex_instructions, f"{rel(codex)}: Codex goal adapter section missing")
+        for phrase in ["Codex `/goal`", "outer objective runtime", "loopState", "stopPolicies"]:
+            require(phrase in codex_instructions, f"{rel(codex)}: Codex goal adapter phrase missing: {phrase}")
+
+    combined_text = source.read_text(encoding="utf-8") + "\n" + codex.read_text(encoding="utf-8")
+    require(f"## {PRODUCTION_RELEASE_RULE_SECTION}" in markdown_body, f"{rel(source)}: platform-wide production release rule section missing")
+    require(f"## {LOOP_GOAL_WINDOW_SECTION}" in markdown_body, f"{rel(source)}: loop goal window section missing")
+    require(f"## {RELEASE_COVERAGE_MATRIX_SECTION}" in markdown_body, f"{rel(source)}: release coverage matrix loop section missing")
+    for phrase in manifest["validation"]["requiredPhrases"]:
+        require(phrase in combined_text, f"{rel(path)}: required phrase missing across source/distribution: {phrase}")
+
+
+def validate_inventory(manifests: list[dict]) -> None:
+    manifest_ids = {manifest["id"] for manifest in manifests}
+    markdown_ids = {path.stem for path in AGENTS_DIR.glob("*.md")}
+    codex_ids = {path.stem for path in CODEX_AGENT_DIR.glob("*.toml")}
+    require(manifest_ids == markdown_ids, f"manifest/agents mismatch: manifests={sorted(manifest_ids)} markdown={sorted(markdown_ids)}")
+    require(manifest_ids == codex_ids, f"manifest/codex mismatch: manifests={sorted(manifest_ids)} codex={sorted(codex_ids)}")
+
+    agent_list = (REPO_ROOT / "AGENT-LIST.md").read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    for agent_id in sorted(manifest_ids):
+        require(agent_id in agent_list, f"AGENT-LIST.md: missing agent id {agent_id}")
+        require(agent_id in readme, f"README.md: missing agent id {agent_id}")
+
+
+def validate_plugins(manifests: list[dict]) -> None:
+    manifest_ids = {manifest["id"] for manifest in manifests}
+    plugin_paths = sorted(PLUGIN_DIR.glob("*/plugin.json"))
+    require(plugin_paths, "plugins: no plugin manifests found")
+    plugin_ids: set[str] = set()
+    assigned_agents: set[str] = set()
+    for path in plugin_paths:
+        plugin = read_json(path)
+        for key in ["schema", "id", "version", "lifecycle", "category", "title", "description", "agents", "installTargets", "qualityGates"]:
+            require(key in plugin, f"{rel(path)}: missing required key {key}")
+        require(plugin["schema"] == "proofops-plugin/v1", f"{rel(path)}: unsupported plugin schema")
+        require(path.parent.name == plugin["id"], f"{rel(path)}: plugin directory must match id")
+        require(plugin["id"] not in plugin_ids, f"{rel(path)}: duplicate plugin id {plugin['id']}")
+        plugin_ids.add(plugin["id"])
+        require(isinstance(plugin["agents"], list) and plugin["agents"], f"{rel(path)}: agents must be non-empty")
+        for agent_id in plugin["agents"]:
+            require(agent_id in manifest_ids, f"{rel(path)}: unknown agent id {agent_id}")
+            assigned_agents.add(agent_id)
+
+    for manifest in manifests:
+        require(manifest["pluginId"] in plugin_ids, f"manifests/agents/{manifest['id']}.json: unknown pluginId {manifest['pluginId']}")
+        require(manifest["id"] in assigned_agents, f"manifests/agents/{manifest['id']}.json: agent is not assigned to a plugin")
+
+
+def run_check(command: list[str], label: str) -> None:
+    completed = subprocess.run(command, cwd=REPO_ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if completed.returncode != 0:
+        detail = (completed.stdout + completed.stderr).strip()
+        raise ValidationError(f"{label} failed:\n{detail}")
+
+
+def validate_generated_outputs() -> None:
+    require((CATALOG_DIR / "agents.json").exists(), "catalog/agents.json: missing generated catalog")
+    require((CATALOG_DIR / "plugins.json").exists(), "catalog/plugins.json: missing generated catalog")
+    agent_catalog = read_json(CATALOG_DIR / "agents.json")
+    plugin_catalog = read_json(CATALOG_DIR / "plugins.json")
+    require(agent_catalog.get("schema") == "proofops-agent-catalog/v1", "catalog/agents.json: invalid schema")
+    require(plugin_catalog.get("schema") == "proofops-plugin-catalog/v1", "catalog/plugins.json: invalid schema")
+    run_check([sys.executable, "scripts/generate-distributions.py", "--check"], "distribution generation check")
+    run_check([sys.executable, "scripts/generate-catalog.py", "--check"], "catalog generation check")
+
+
+def validate_proposal_script_contract() -> None:
+    script = (REPO_ROOT / "scripts" / "propose-changes.py").read_text(encoding="utf-8")
+    require('"schema": "proofops-proposal/v1"' in script, "scripts/propose-changes.py: proposal schema marker missing")
+    apply_script = (REPO_ROOT / "scripts" / "apply-proposal.py").read_text(encoding="utf-8")
+    require("ALLOWED_PREFIXES" in apply_script, "scripts/apply-proposal.py: managed path allowlist missing")
+
+
+def validate_all() -> list[str]:
+    validate_schema_files()
+    validate_target_presets()
+    validate_production_representative_sandbox()
+    validate_project_profiles()
+    paths = sorted(MANIFEST_DIR.glob("*.json"))
+    require(paths, "manifests/agents: no manifest files found")
+
+    manifests: list[dict] = []
+    seen: set[str] = set()
+    for path in paths:
+        manifest = read_json(path)
+        validate_manifest_shape(path, manifest)
+        require(manifest["id"] not in seen, f"{rel(path)}: duplicate agent id {manifest['id']}")
+        seen.add(manifest["id"])
+        validate_agent_files(path, manifest)
+        manifests.append(manifest)
+
+    validate_inventory(manifests)
+    validate_plugins(manifests)
+    validate_generated_outputs()
+    validate_proposal_script_contract()
+    return [manifest["id"] for manifest in manifests]
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Validate ProofOps contracts")
+    parser.add_argument("--json", action="store_true", help="Print machine-readable validation result")
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    try:
+        agent_ids = validate_all()
+    except ValidationError as exc:
+        if args.json:
+            print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False, indent=2))
+        else:
+            print(f"[ERR] {exc}", file=sys.stderr)
+        return 1
+
+    result = {"ok": True, "agentCount": len(agent_ids), "agents": sorted(agent_ids)}
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        print(f"[OK] validated {len(agent_ids)} agents: {', '.join(sorted(agent_ids))}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

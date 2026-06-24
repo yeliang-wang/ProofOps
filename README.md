@@ -1,8 +1,8 @@
 # ProofOps
 
-ProofOps is an evidence-first maturity and release governance project for AI agent products and engineering automation systems.
+> Evidence-first release governance for AI agent products: real-boundary maturity gates, active stability, and product-native `GO` / `NO-GO` decisions.
 
-It helps a project move from demo, alpha, beta, or RC toward production-ready GA by turning the target into a reviewable plan, architecture readiness review, release coverage matrix, real-boundary evidence loop, productized repair cycle, final report, and explicit `GO`, `CONDITIONAL-GO`, `NO-GO`, or `BLOCKED` decision.
+ProofOps helps a project move from demo, alpha, beta, or RC toward production-ready GA by turning the target into a reviewable plan, architecture readiness review, release coverage matrix, real-boundary evidence loop, productized repair cycle, final report, and explicit `GO`, `CONDITIONAL-GO`, `NO-GO`, or `BLOCKED` decision.
 
 ProofOps is not a general agent framework like LangGraph, CrewAI, or AutoGen. It is the governance layer above agent runtimes, coding agents, CI/CD, SCM, LLM providers, and product APIs.
 
@@ -13,6 +13,52 @@ ProofOps is currently `1.0.0 Core GA`.
 Core GA means the ProofOps governance engine, agent/plugin contracts, target presets, generated Codex distribution, release coverage runner, production-representative sandbox, reusable profile templates, evidence adapter contracts, release readiness gates, and CI workflow are stable and repeatably validated.
 
 Core GA does not claim independent field validation. Field GA remains a separate milestone that requires at least two independent real target products to produce product-native `GO` decisions with `targetReached=true`.
+
+## Why ProofOps
+
+AI agent products often reach "demo works" long before they have release-grade evidence. ProofOps exists to make the maturity claim reviewable:
+
+| Question | ProofOps answer |
+| --- | --- |
+| What target are we trying to reach? | A confirmed target plan, preferably from the product's own release target API. |
+| Is the architecture ready? | A readiness phase that checks runtime boundaries, adapters, state, rollback, observability, and repair paths. |
+| Is the evidence real? | Matrix rows that reject mock, fake, stub, simulator, fixture-only, smoke-only, and chat-only proof for production claims. |
+| Did stability include load? | Active-stability rows that require real workload deltas, not empty health polling. |
+| Can we release? | A final report and explicit release decision backed by command, API, and artifact evidence. |
+
+## Quick Start
+
+Install dependencies:
+
+```bash
+npm ci
+```
+
+Validate the local project:
+
+```bash
+npm run validate
+npm run check
+npm run generate -- --check
+npm run eval
+npm run release:check
+```
+
+Run the Core GA gate:
+
+```bash
+npm run release:check:core-ga
+npm run release:check:ga
+```
+
+Render a target plan:
+
+```bash
+npm run proofops:plan -- \
+  --agent proofops-governor \
+  --project-id your-project \
+  "Move this demo project toward beta readiness with real evidence"
+```
 
 ## Core Agent
 
@@ -64,32 +110,9 @@ Product-native targets always win over presets. Presets only create the initial 
 
 Every demo-to-production or beta-to-GA loop includes an architecture readiness phase. It checks whether the architecture can support the selected target, including runtime boundaries, adapters, state, resume, rollback, observability, evidence storage, release decisions, and productized repair paths.
 
-## Install
+## Field GA Gate
 
-Install dependencies:
-
-```bash
-npm ci
-```
-
-Validate the project:
-
-```bash
-npm run validate
-npm run check
-npm run generate -- --check
-npm run eval
-npm run release:check
-```
-
-Core GA gate:
-
-```bash
-npm run release:check:core-ga
-npm run release:check:ga
-```
-
-Field GA gate:
+Field GA is intentionally separate from Core GA:
 
 ```bash
 npm run release:check:field-ga
@@ -98,15 +121,6 @@ npm run release:check:field-ga
 Field GA is expected to fail until independent real-project evidence is available.
 
 ## Codex Usage
-
-Render a target plan:
-
-```bash
-npm run proofops:plan -- \
-  --agent proofops-governor \
-  --project-id your-project \
-  "Move this demo project toward beta readiness with real evidence"
-```
 
 Install the generated Codex agent into a target project:
 
@@ -161,3 +175,17 @@ ProofOps does not replace:
 - product-owned GA definitions
 
 ProofOps governs whether the target product has enough real evidence to advance to the requested maturity target.
+
+## GitHub About
+
+Suggested repository description:
+
+```text
+Evidence-first release governance for AI agent products: real-boundary maturity gates, active stability, and product-native GO/NO-GO decisions.
+```
+
+Suggested topics:
+
+```text
+agentops, release-governance, ga-readiness, evidence, ai-agents, quality-gates, codex, ci-cd
+```

@@ -292,8 +292,14 @@ def validate_project_profiles() -> None:
           require(isinstance(step_id, str) and step_id, f"{rel(path)}: step.id is required")
           require(step_id not in seen_step_ids, f"{rel(path)}: duplicate step id {step_id}")
           seen_step_ids.add(step_id)
-          require(step.get("type") in {"health", "command", "http", "boundary", "sandbox-verify", "sandbox-register", "release-evidence", "release-decision"}, f"{rel(path)}: invalid step type for {step_id}")
+          require(step.get("type") in {"health", "command", "http", "boundary", "sandbox-verify", "sandbox-register", "active-stability", "release-evidence", "release-decision"}, f"{rel(path)}: invalid step type for {step_id}")
           require(isinstance(step.get("requiredEvidence"), str) and step["requiredEvidence"], f"{rel(path)}: step {step_id} missing requiredEvidence")
+          if step.get("type") == "active-stability":
+              require(isinstance(step.get("summaryUrl"), str) and step["summaryUrl"].startswith(("http://", "https://")), f"{rel(path)}: active-stability step {step_id} requires summaryUrl")
+              require(isinstance(step.get("workload"), dict) and isinstance(step["workload"].get("command"), str), f"{rel(path)}: active-stability step {step_id} requires workload.command")
+              thresholds = step.get("activityThresholds", {})
+              require(isinstance(thresholds, dict), f"{rel(path)}: active-stability step {step_id} activityThresholds must be an object")
+              require(any(int(thresholds.get(key, 0)) > 0 for key in ["minRunDelta", "minCodeChangeDelta", "minPipelineDelta"]), f"{rel(path)}: active-stability step {step_id} must require a real activity delta")
       has_release_decision_step = any(step.get("type") == "release-decision" for step in steps)
       release_decision_mode = profile.get("releaseDecision", {}).get("mode")
       require(

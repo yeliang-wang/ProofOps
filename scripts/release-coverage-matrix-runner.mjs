@@ -152,6 +152,10 @@ async function runIteration(attempt) {
         evidence = await runSandboxRegister(step);
         status = evidence.ok ? "PASS" : "BLOCKED";
         blocker = evidence.ok ? "" : evidence.error ?? "representative project registration failed";
+      } else if (step.type === "active-stability") {
+        evidence = await runActiveStability(step);
+        status = evidence.ok ? "PASS" : "BLOCKED";
+        blocker = evidence.ok ? "" : evidence.error ?? "active stability proof failed";
       } else if (step.type === "release-evidence") {
         latestSummary = await fetchJson(step.summaryUrl, { auth: true }).catch((error) => ({ error: String(error.message ?? error) }));
         releaseEvidence = await postJson(step.url, buildReleaseEvidenceBody({ step, coverageMatrix, latestSummary, attempt }), { auth: true }).catch((error) => ({ error: String(error.message ?? error) }));
@@ -335,6 +339,143 @@ async function runSandboxRegister(step) {
     return item.response?.status >= 200 && item.response?.status < 300 && body?.validation?.status === "VERIFIED";
   });
   return { ok, command, registrations: registrations.map((item) => ({ projectId: item.projectId, status: item.response?.status, validation: (item.response?.body?.data ?? item.response?.body)?.validation?.status })) };
+}
+
+async function runActiveStability(step) {
+  const startedAt = new Date();
+  const durationSeconds = Math.max(1, Number(step.durationSeconds ?? 60));
+  const checkIntervalSeconds = Math.max(1, Number(step.checkIntervalSeconds ?? 30));
+  const workloadIntervalSeconds = Math.max(checkIntervalSeconds, Number(step.workloadIntervalSeconds ?? checkIntervalSeconds));
+  const deadline = startedAt.getTime() + durationSeconds * 1000;
+  const baseline = await readStabilitySummary(step);
+  const checks = [];
+  const workloadRuns = [];
+  let failures = 0;
+  let nextWorkloadAt = step.workload ? startedAt.getTime() : Number.POSITIVE_INFINITY;
+  let latestSummary = baseline;
+
+  while (Date.now() < deadline) {
+    try {
+      if (step.workload && Date.now() >= nextWorkloadAt) {
+        const workload = await runWorkloadStep(step);
+        workloadRuns.push(workload);
+        if (workload.code !== 0) throw new Error(`workload exited ${workload.code}`);
+        nextWorkloadAt = Date.now() + workloadIntervalSeconds * 1000;
+      }
+      const health = await runStabilityHealthChecks(step);
+      latestSummary = await readStabilitySummary(step);
+      checks.push({
+        at: new Date().toISOString(),
+        status: "PASS",
+        health,
+        summary: stabilityCounters(step, latestSummary)
+      });
+    } catch (error) {
+      failures += 1;
+      checks.push({
+        at: new Date().toISOString(),
+        status: "FAIL",
+        error: String(error.message ?? error),
+        summary: latestSummary ? stabilityCounters(step, latestSummary) : undefined
+      });
+    }
+    if (Date.now() < deadline) await sleep(Math.min(checkIntervalSeconds * 1000, Math.max(0, deadline - Date.now())));
+  }
+
+  latestSummary = await readStabilitySummary(step);
+  const activity = stabilityDeltas(step, baseline, latestSummary);
+  const thresholds = {
+    minRunDelta: Number(step.activityThresholds?.minRunDelta ?? 1),
+    minCodeChangeDelta: Number(step.activityThresholds?.minCodeChangeDelta ?? 1),
+    minPipelineDelta: Number(step.activityThresholds?.minPipelineDelta ?? 1)
+  };
+  const activityOk = activity.runDelta >= thresholds.minRunDelta &&
+    activity.codeChangeDelta >= thresholds.minCodeChangeDelta &&
+    activity.pipelineDelta >= thresholds.minPipelineDelta;
+  const workloadOk = !step.workload || workloadRuns.length > 0 && workloadRuns.every((item) => item.code === 0);
+  const ok = failures === 0 && activityOk && workloadOk;
+  return {
+    ok,
+    startedAt: startedAt.toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationSeconds,
+    checks: checks.length,
+    failures,
+    baseline: stabilityCounters(step, baseline),
+    latest: stabilityCounters(step, latestSummary),
+    activity,
+    thresholds,
+    workloadRuns: workloadRuns.map((item) => ({
+      code: item.code,
+      durationMs: item.durationMs,
+      stdoutTail: item.stdoutTail,
+      stderrTail: item.stderrTail
+    })),
+    error: ok ? undefined : failures > 0
+      ? `${failures} active stability health or workload check(s) failed`
+      : !activityOk
+        ? `NO_ACTIVE_WORKLOAD: activity delta ${JSON.stringify(activity)} below ${JSON.stringify(thresholds)}`
+        : "workload did not complete successfully"
+  };
+}
+
+async function readStabilitySummary(step) {
+  if (!step.summaryUrl) throw new Error("active-stability step requires summaryUrl");
+  return unwrapData(await fetchJson(step.summaryUrl, { auth: step.auth !== false }));
+}
+
+async function runStabilityHealthChecks(step) {
+  const results = [];
+  for (const check of step.healthChecks ?? []) {
+    const data = await fetchAny(check.url, { auth: check.auth === true, headers: resolveHeaders(check.headers ?? {}) });
+    const ok = matchesExpect(data, check.expect ?? { status: "UP" });
+    results.push({ url: check.url, ok, body: compactEvidence(data, 1200) });
+    if (!ok) throw new Error(`health check ${check.url} did not match expected fields`);
+  }
+  return results;
+}
+
+async function runWorkloadStep(step) {
+  const workload = step.workload;
+  if (!workload?.command) throw new Error("active-stability workload.command is required");
+  return runCommand(workload.command, workload.args ?? [], {
+    cwd: path.resolve(projectRoot, workload.cwd ?? step.cwd ?? "."),
+    timeoutMs: workload.timeoutMs ?? step.workloadTimeoutMs,
+    env: { ...(step.env ?? {}), ...(workload.env ?? {}) },
+    envUnset: step.envUnset
+  });
+}
+
+function stabilityCounters(step, summary) {
+  const paths = activityPaths(step);
+  return {
+    runCount: numericPath(summary, paths.runCount),
+    codeChangeCount: numericPath(summary, paths.codeChangeCount),
+    pipelineCount: numericPath(summary, paths.pipelineCount)
+  };
+}
+
+function stabilityDeltas(step, before, after) {
+  const left = stabilityCounters(step, before);
+  const right = stabilityCounters(step, after);
+  return {
+    runDelta: right.runCount - left.runCount,
+    codeChangeDelta: right.codeChangeCount - left.codeChangeCount,
+    pipelineDelta: right.pipelineCount - left.pipelineCount
+  };
+}
+
+function activityPaths(step) {
+  return {
+    runCount: step.activityPaths?.runCount ?? "runCount",
+    codeChangeCount: step.activityPaths?.codeChangeCount ?? "codeUpgradeCount",
+    pipelineCount: step.activityPaths?.pipelineCount ?? "pipelineCount"
+  };
+}
+
+function numericPath(data, dotted) {
+  const value = Number(getPath(data, dotted));
+  return Number.isFinite(value) ? value : 0;
 }
 
 function buildReleaseEvidenceBody({ step, coverageMatrix, latestSummary, attempt }) {
@@ -776,6 +917,29 @@ function workflowForMatrixRow(rowItem, result, now) {
       resumeAllowedWhen: "Targeted product verification and production E2E both pass."
     });
   }
+  if (key.includes("active-stability") || key.includes("soak")) {
+    return repairWorkflow({
+      type: "soak-governance",
+      severity: "P1",
+      summary: "Required active stability proof failed or produced no real workload delta.",
+      blocker: `${rowItem.capability}/${rowItem.scenario}: ${rowItem.blocker}`,
+      ownerAgent: "proofops-governor",
+      commands: [],
+      evidenceRequired: [
+        "health checks remain passing for the configured window",
+        "real workload command exits 0",
+        "run/code-change/pipeline counters increase by the configured thresholds",
+        "health-only or empty soak is not counted as GA evidence"
+      ],
+      steps: [
+        step("diagnose", "Inspect active stability evidence, workload command output, baseline/latest counters, and health failures."),
+        step("repair", "Fix the workload runner, target product API, code-change boundary, pipeline boundary, or evidence counter path."),
+        step("verify", "Rerun active stability proof until health checks pass and real activity deltas meet thresholds."),
+        step("resume", "Resume the release loop only after active stability evidence is product-native and passing.")
+      ],
+      resumeAllowedWhen: "The active stability row passes with real workload deltas and no health failures."
+    });
+  }
   if (key.includes("npm-check") || key.includes("repository")) {
     return repairWorkflow({
       type: "repository-quality",
@@ -886,22 +1050,22 @@ function workflowForMatrixRow(rowItem, result, now) {
 
 function workflowForReleaseCriterion(criterion, result, now) {
   const id = String(criterion.id ?? criterion.name ?? "").toLowerCase();
-  if (id.includes("soak")) {
+  if (id.includes("soak") || id.includes("active")) {
     return repairWorkflow({
       type: "soak-governance",
       severity: "P1",
-      summary: "GA soak duration has not reached the configured release target.",
+      summary: "GA active stability proof has not reached the configured release target.",
       blocker: `${criterion.id}: actual=${criterion.actual}, target=${criterion.target}`,
       ownerAgent: "proofops-governor",
       commands: [],
-      evidenceRequired: ["successful soak seconds reach the configured target", "soak evidence is from the product-native release decision"],
+      evidenceRequired: ["successful active soak seconds reach the configured target", "active workload counters increase under the configured real workload", "soak evidence is from the product-native release decision"],
       steps: [
-        step("diagnose", "Confirm current succeeded soak seconds and whether the soak clock is advancing."),
-        step("repair", "If soak is not advancing, repair the soak/evidence ingestion path; otherwise keep the loop in soak governance instead of product-defect repair."),
-        step("verify", "Refresh /api/v1/release/decisions and confirm succeededSoakSeconds increases or reaches target."),
+        step("diagnose", "Confirm current active soak seconds, workload run count, health failures, and whether run/code-change/pipeline counters are increasing."),
+        step("repair", "If active stability is not advancing, repair the workload runner, health probe, code-change boundary, pipeline boundary, or evidence ingestion path; do not replace it with health-only soak."),
+        step("verify", "Refresh the product-native release decision and confirm activeSucceededSoakSeconds plus workload deltas reach target."),
         step("resume", "Resume or continue only according to soak governance status.")
       ],
-      resumeAllowedWhen: "Soak is advancing correctly or target soak seconds are satisfied."
+      resumeAllowedWhen: "Active stability proof is advancing correctly or target active soak seconds and workload deltas are satisfied."
     });
   }
   if (id.includes("required-scenarios")) {

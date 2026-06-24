@@ -5,6 +5,6 @@
   "category": "product-api",
   "evidenceType": "release-target-and-decision",
   "requiredInputs": ["targetsEndpoint", "decisionEndpoint", "releaseTarget", "candidateRef"],
-  "proofRule": "A release row passes only when the product-native release target and latest decision agree that the candidate reached the requested target.",
+  "proofRule": "A release row passes only when the product-native release target and latest decision agree that the candidate reached the requested target; agent-only or stale decisions cannot override the latest product-native GO/NO-GO.",
   "nonProductionLimit": "Health endpoints, synthetic decision files, smoke-only checks, or agent-only judgments cannot replace product-native release decisions when the product exposes them."
 }

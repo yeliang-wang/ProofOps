@@ -135,6 +135,9 @@ def target_preset_checks() -> list[dict[str, Any]]:
         add(checks, f"{path.stem}:runtime-criteria", bool(preset.get("runtimeCriteria")))
         add(checks, f"{path.stem}:release-criteria", bool(preset.get("releaseCriteria")))
         add(checks, f"{path.stem}:decisions", {"GO", "CONDITIONAL-GO", "NO-GO", "BLOCKED"}.issubset(set(preset.get("decisionVocabulary", []))))
+        if path.stem == "ga":
+            ga_text = json.dumps(preset, ensure_ascii=False).lower()
+            add(checks, "ga:active-stability", "active workload" in ga_text and "health-only" in ga_text, "GA preset must require active workload stability and reject health-only soak")
     return checks
 
 
@@ -221,7 +224,9 @@ def docs_checks() -> list[dict[str, Any]]:
     add(checks, "readme-loop-goal-window", "target plan" in readme)
     add(checks, "release-doc-loop-goal-window", release_doc.exists() and LOOP_GOAL_WINDOW_SECTION in release_doc.read_text(encoding="utf-8"))
     add(checks, "readme-release-coverage-matrix", "release coverage matrix" in readme)
+    add(checks, "readme-active-stability", "active workload stability" in readme and "Health-only" in readme)
     add(checks, "release-doc-release-coverage-matrix", release_doc.exists() and RELEASE_COVERAGE_MATRIX_SECTION in release_doc.read_text(encoding="utf-8"))
+    add(checks, "release-doc-active-stability", release_doc.exists() and "active workload stability" in release_doc.read_text(encoding="utf-8") and "Health-only" in release_doc.read_text(encoding="utf-8"))
     add(checks, "readme-target-presets", "Target Presets" in readme)
     add(checks, "readme-architecture-readiness", "Architecture Readiness" in readme)
     add(checks, "sandbox-readme", (PRODUCTION_REPRESENTATIVE_SANDBOX_DIR / "README.md").exists())
@@ -278,6 +283,7 @@ def core_ga_checks() -> list[dict[str, Any]]:
     found_profile_paths = {path.relative_to(REPO_ROOT).as_posix() for path in PROJECT_PROFILE_DIR.glob("examples/*.json")}
     found_template_paths = {path.relative_to(REPO_ROOT).as_posix() for path in PROFILE_TEMPLATE_DIR.glob("*.json")}
     found_adapter_ids = {path.stem for path in ADAPTER_DIR.glob("*.json")}
+    active_stability_adapter = read_json(ADAPTER_DIR / "active-stability.json") if (ADAPTER_DIR / "active-stability.json").exists() else {}
     missing_scoped_profiles = sorted(scoped_profile_paths - found_profile_paths)
     missing_scoped_templates = sorted(scoped_template_paths - found_template_paths)
     missing_scoped_adapters = sorted(scoped_adapter_ids - found_adapter_ids)
@@ -300,6 +306,14 @@ def core_ga_checks() -> list[dict[str, Any]]:
     add(checks, "core-ga-scoped-project-profiles", not missing_scoped_profiles, ", ".join(missing_scoped_profiles))
     add(checks, "core-ga-profile-templates", len(found_template_paths) >= 3 and not missing_scoped_templates, ", ".join(missing_scoped_templates))
     add(checks, "core-ga-evidence-adapters", len(found_adapter_ids) >= 5 and not missing_scoped_adapters, ", ".join(missing_scoped_adapters))
+    add(
+        checks,
+        "core-ga-active-stability-adapter",
+        "active-stability" in found_adapter_ids
+        and active_stability_adapter.get("evidenceType") == "active-workload-soak"
+        and "Health-only" in active_stability_adapter.get("nonProductionLimit", ""),
+        "active-stability adapter must reject health-only soak",
+    )
     add(
         checks,
         "core-ga-project-profile-final-reports",

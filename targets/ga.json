@@ -3,12 +3,13 @@
   "id": "ga",
   "title": "General Availability",
   "lifecycleTarget": "ga",
-  "description": "Prove production-ready GA with product-native GO decisions, multiple real target projects, no high open risks, and stable GA release gates.",
+  "description": "Prove production-ready GA with product-native GO decisions, multiple real target projects, no high open risks, and active workload stability gates.",
   "phaseTargets": [
     "confirm GA target plan",
     "verify architecture and runtime readiness",
     "run scoped real-project release profiles",
     "collect product-native release decisions",
+    "run active workload stability gate",
     "run stable GA gate"
   ],
   "architectureCriteria": [
@@ -18,10 +19,12 @@
   ],
   "runtimeCriteria": [
     "multiple real target projects produce product-native GO decisions",
+    "active workload stability proof runs real workload while health, code-change, and pipeline counters advance",
     "representative profile reaches targetReached=true",
     "LLM, SCM, CI/CD, rollback, approval, and product API boundaries are real where required"
   ],
   "releaseCriteria": [
+    "active stability gate passes without health-only or empty soak evidence",
     "stable GA gate passes",
     "scoped agents and plugins are production-ready",
     "final reports are GO with targetReached=true",
@@ -30,6 +33,7 @@
   "requiredEvidence": [
     "product-native GO decisions",
     "real-project final reports",
+    "active workload stability evidence",
     "rollback evidence",
     "support matrix",
     "stable GA release-readiness output"

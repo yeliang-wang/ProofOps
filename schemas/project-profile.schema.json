@@ -132,12 +132,59 @@
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "type": {
-            "enum": ["health", "command", "http", "boundary", "sandbox-verify", "sandbox-register", "release-evidence", "release-decision"]
+            "enum": ["health", "command", "http", "boundary", "sandbox-verify", "sandbox-register", "active-stability", "release-evidence", "release-decision"]
           },
           "capability": { "type": "string" },
           "scenario": { "type": "string" },
           "requiredEvidence": { "type": "string" },
-          "required": { "type": "boolean" }
+          "required": { "type": "boolean" },
+          "summaryUrl": { "type": "string" },
+          "durationSeconds": { "type": "integer", "minimum": 1 },
+          "checkIntervalSeconds": { "type": "integer", "minimum": 1 },
+          "workloadIntervalSeconds": { "type": "integer", "minimum": 1 },
+          "workload": {
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+              "command": { "type": "string", "minLength": 1 },
+              "args": { "type": "array", "items": { "type": "string" } },
+              "cwd": { "type": "string" },
+              "timeoutMs": { "type": "integer", "minimum": 1000 },
+              "env": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              }
+            }
+          },
+          "activityThresholds": {
+            "type": "object",
+            "properties": {
+              "minRunDelta": { "type": "integer", "minimum": 0 },
+              "minCodeChangeDelta": { "type": "integer", "minimum": 0 },
+              "minPipelineDelta": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "activityPaths": {
+            "type": "object",
+            "properties": {
+              "runCount": { "type": "string" },
+              "codeChangeCount": { "type": "string" },
+              "pipelineCount": { "type": "string" }
+            }
+          },
+          "healthChecks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["url"],
+              "properties": {
+                "url": { "type": "string" },
+                "auth": { "type": "boolean" },
+                "headers": { "type": "object", "additionalProperties": true },
+                "expect": { "type": "object", "additionalProperties": true }
+              }
+            }
+          }
         }
       }
     }

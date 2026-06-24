@@ -30,6 +30,7 @@ The Core GA scope is:
 | Core profiles | ProofOps self-evidence and production-representative profiles run through the release coverage matrix runner. |
 | Profile templates | At least three reusable templates cover beta, RC, and GA-style projects. |
 | Evidence adapters | Adapter contracts cover SCM, CI/CD, LLM, E2E, and product-native release APIs. |
+| Active stability | GA profiles and adapters distinguish active workload stability from health-only or empty soak. |
 | Reports | Final reports include coverage matrix, evidence map, repair policy, release decision, and final target summary. |
 | Distribution | Release includes changelog, support matrix, install/upgrade notes, and compatibility notes. |
 
@@ -41,7 +42,8 @@ ProofOps can mark its core components `production-ready` only after:
 2. `npm run release:check:core-ga` passes.
 3. Scoped Core GA final reports are `GO` with `targetReached=true`.
 4. Profile templates and adapter contracts are validated.
-5. Release notes explicitly state that independent Field GA remains separate.
+5. Active stability contracts reject health-only soak as GA evidence.
+6. Release notes explicitly state that independent Field GA remains separate.
 
 ## Field GA Promotion Rule
 
@@ -52,3 +54,9 @@ ProofOps reaches Field GA only after:
 3. Required LLM, SCM, CI/CD, product API, rollback, observability, and audit boundaries are real where applicable.
 
 Do not claim Field GA from local validation, production-representative sandbox evidence, prompt quality, smoke checks, or chat-only summaries.
+
+## Active Stability Rule
+
+GA stability proof must be load-bearing. A service that only responds to health checks during a timer window has not proven GA stability. ProofOps accepts active stability evidence only when a real workload runs during the window and product counters prove activity, such as run count, code-change count, and pipeline count deltas.
+
+If the target product exposes a product-native release decision, that decision remains authoritative. ProofOps can still run an `active-stability` matrix row for products that expose summary counters and workload commands, but it must not convert empty soak into `GO`.

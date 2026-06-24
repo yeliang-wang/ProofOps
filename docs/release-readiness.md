@@ -29,6 +29,18 @@ Every maturity or release loop must define final goal, phase goals, acceptance c
 
 Release, beta, RC, and GA loops must use a release coverage matrix with evidence map, blocker policy, repair policy, release decision, and per-phase decision chain.
 
+## Active Workload Stability
+
+GA loops should include active workload stability when the target product exposes enough counters or product-native release criteria. Health-only polling can prove the service did not crash, but it is not release evidence by itself.
+
+An active stability row must:
+
+- capture a baseline product summary,
+- run a real workload command on a configured cadence,
+- probe health and readiness endpoints during the window,
+- prove run, code-change, and pipeline counters increased by configured thresholds,
+- fail the row when there is no active workload delta.
+
 ## Core GA
 
 `npm run release:check:core-ga` and `npm run release:check:ga` evaluate Core GA. Core GA covers the stable governance engine, reusable profile templates, evidence adapter contracts, production-representative evidence, and final reports.

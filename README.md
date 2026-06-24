@@ -44,6 +44,8 @@ discover
 
 It refuses production claims backed only by mock, fake, stub, simulator, fixture-only, demo-only, smoke-only, or chat-only evidence.
 
+For GA targets, ProofOps also distinguishes active stability from empty soak. Health-only polling can prove connectivity, but it cannot prove GA stability by itself. A GA active workload stability row must run a real workload while the target product stays healthy and product counters such as runs, code changes, and pipelines advance by configured thresholds.
+
 ## Target Presets
 
 ProofOps includes fallback target presets under `targets/`:
@@ -124,6 +126,8 @@ npm run release:runner -- --profile project-profiles/examples/proofops.public-be
 
 Reusable profile templates live under `project-profiles/templates/`, and evidence adapter contracts live under `adapters/`.
 
+GA-oriented profiles can include an `active-stability` matrix step. The runner records a baseline summary, executes the configured workload on a cadence, probes health/readiness endpoints, then compares final counters to the configured activity thresholds. If the service stays healthy but no real workload delta appears, the row fails as release evidence instead of becoming an empty soak pass.
+
 ```bash
 npm run proofops:install -- --help
 python3 scripts/proofops-control.py profile-templates
@@ -142,6 +146,8 @@ python3 scripts/proofops-control.py init-profile \
 `npm run release:check:ga` is the Core GA gate. It requires scoped agents and plugins to be `production-ready`, reusable profile templates and evidence adapters to be present, and scoped Core GA project profile final reports to be `GO` with `targetReached=true`.
 
 `npm run release:check:field-ga` is the independent field validation gate. It requires at least two independent real target products with product-native `GO` decisions. Production-representative sandbox evidence does not count as field evidence.
+
+Health-only soak, copied logs, or chat summaries do not satisfy GA active stability. The target product should either expose product-native release decisions that include active stability criteria or be governed by a ProofOps profile with an `active-stability` row backed by real workload deltas.
 
 ## Boundary
 

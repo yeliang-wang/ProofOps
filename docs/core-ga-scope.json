@@ -15,6 +15,7 @@
     "project-profiles/templates/llm-agent-ga.json"
   ],
   "requiredEvidenceAdapters": [
+    "active-stability",
     "github-actions",
     "gitlab",
     "jenkins",
@@ -22,5 +23,5 @@
     "playwright",
     "product-release-api"
   ],
-  "productionEvidenceRule": "Core GA validates ProofOps governance contracts, reusable profiles, adapter contracts, local production-representative evidence, install drift checks, and final reports. It does not claim independent field validation."
+  "productionEvidenceRule": "Core GA validates ProofOps governance contracts, reusable profiles, adapter contracts, active workload stability contracts, local production-representative evidence, install drift checks, and final reports. It does not claim independent field validation."
 }

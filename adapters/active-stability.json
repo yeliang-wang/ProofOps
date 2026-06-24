@@ -1,0 +1,17 @@
+{
+  "schema": "proofops-evidence-adapter/v1",
+  "id": "active-stability",
+  "title": "Active Stability Evidence Adapter",
+  "category": "stability",
+  "evidenceType": "active-workload-soak",
+  "requiredInputs": [
+    "summaryEndpoint",
+    "healthEndpoints",
+    "workloadCommand",
+    "durationSeconds",
+    "activityThresholds",
+    "candidateRef"
+  ],
+  "proofRule": "A GA stability row passes only when the target product remains healthy for the configured window while a real workload repeatedly succeeds and product counters prove run, code-change, and pipeline activity deltas.",
+  "nonProductionLimit": "Health-only soak, empty polling, smoke-only checks, local fixture counters, copied logs, or chat summaries do not count as GA active stability evidence."
+}

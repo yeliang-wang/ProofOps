@@ -3,9 +3,9 @@
   "id": "llm-agent-ga",
   "title": "LLM Agent GA Profile",
   "target": "ga",
-  "bestFor": "An AI agent product that needs GA proof across real LLM, E2E, product API, SCM, and CI/CD boundaries.",
-  "requiredAdapters": ["llm-provider", "playwright", "product-release-api", "github-actions"],
-  "requiredBoundaries": ["llm", "scm", "ci-cd", "product-api", "e2e", "rollback", "audit"],
+  "bestFor": "An AI agent product that needs GA proof across real LLM, E2E, product API, SCM, CI/CD, and active stability boundaries.",
+  "requiredAdapters": ["llm-provider", "playwright", "product-release-api", "github-actions", "active-stability"],
+  "requiredBoundaries": ["llm", "scm", "ci-cd", "product-api", "e2e", "rollback", "audit", "active-workload-stability"],
   "matrixSeed": [
     {
       "capability": "llm-boundary",
@@ -21,6 +21,11 @@
       "capability": "release-decision",
       "scenario": "product-native-go",
       "requiredEvidence": "Product-native release decision returns GO with targetReached=true for the GA target."
+    },
+    {
+      "capability": "active-stability",
+      "scenario": "workload-soak",
+      "requiredEvidence": "Target product remains healthy while real workload repeatedly succeeds and run, code-change, and pipeline counters increase by configured thresholds."
     }
   ]
 }

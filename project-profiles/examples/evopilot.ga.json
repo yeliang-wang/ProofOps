@@ -269,6 +269,55 @@
       "required": true
     },
     {
+      "id": "ga-active-stability",
+      "type": "active-stability",
+      "capability": "active-stability",
+      "scenario": "workload-soak",
+      "summaryUrl": "http://127.0.0.1:19876/api/v1/summary",
+      "durationSeconds": 5400,
+      "checkIntervalSeconds": 60,
+      "workloadIntervalSeconds": 900,
+      "healthChecks": [
+        {
+          "url": "http://127.0.0.1:19876/health",
+          "auth": false,
+          "expect": { "status": "UP" }
+        },
+        {
+          "url": "http://127.0.0.1:19876/ready",
+          "auth": true,
+          "expect": { "status": "READY" }
+        },
+        {
+          "url": "http://127.0.0.1:3000/health",
+          "auth": false,
+          "expect": { "status": "UP" }
+        }
+      ],
+      "workload": {
+        "command": "node",
+        "args": ["scripts/release-matrix-project-loop.mjs"],
+        "timeoutMs": 900000,
+        "env": {
+          "EVOPILOT_RELEASE_MATRIX_PROJECT_LIMIT": "1",
+          "EVOPILOT_RELEASE_MATRIX_PROJECT_ATTEMPTS": "3",
+          "EVOPILOT_RELEASE_MATRIX_TIMEOUT_MS": "900000"
+        }
+      },
+      "activityPaths": {
+        "runCount": "runCount",
+        "codeChangeCount": "codeUpgradeCount",
+        "pipelineCount": "pipelineCount"
+      },
+      "activityThresholds": {
+        "minRunDelta": 5,
+        "minCodeChangeDelta": 5,
+        "minPipelineDelta": 5
+      },
+      "requiredEvidence": "EvoPilot remains healthy for 5400s while a real release matrix workload repeatedly succeeds and run/code-upgrade/pipeline counters each increase by at least 5",
+      "required": true
+    },
+    {
       "id": "release-evidence",
       "type": "release-evidence",
       "capability": "release-evidence",

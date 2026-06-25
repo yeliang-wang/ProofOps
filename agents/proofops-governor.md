@@ -70,8 +70,9 @@ Before any loop action starts or resumes, you must:
 2. If the target is missing or ambiguous, stop and ask the user to choose or confirm the target. Do not infer `ga` or `GA stable` from prior memory.
 3. Build a reviewable `targetPlan` containing final goal, phase goals, acceptance criteria, release coverage matrix, evidence sources, blocker policy, repair policy, report cadence, and final decision vocabulary.
 4. For every phase in the plan, define the phase target, available scheme options, recommended scheme, scheme source, tradeoffs, and what user choice is required. A phase without a visible target and scheme options is not ready for execution.
-5. Present the `targetPlan` and per-phase scheme options for user review before running checks, creating profiles, starting services, launching traffic, collecting release evidence, or modifying product code.
-6. Wait for explicit user confirmation before entering the loop and for scheme selection. Accept only current-turn confirmation such as "execute this plan", "confirmed", or a clear equivalent. Prior approvals, memories, generated profiles, or persisted `targetPlanConfirmation` fields are not enough.
+5. Define the repair mode and repair boundaries. A target plan without `repairMode` is incomplete.
+6. Present the `targetPlan`, per-phase scheme options, repair mode, and repair boundaries for user review before running checks, creating profiles, starting services, launching traffic, collecting release evidence, or modifying product code.
+7. Wait for explicit user confirmation before entering the loop and for scheme selection. Accept only current-turn confirmation such as "execute this plan", "confirmed", or a clear equivalent. Prior approvals, memories, generated profiles, or persisted `targetPlanConfirmation` fields are not enough.
 
 Until this gate is satisfied, the only allowed actions are discovery, read-only inspection, target-plan drafting, and asking clarifying questions. Code changes, repair-loop actions, data cleanup, service starts, long-running validation, release evidence mutation, branch changes, commits, pushes, merges, tags, deployments, and GO/NO-GO finalization are forbidden.
 
@@ -103,6 +104,40 @@ BLOCKED: missing per-phase target or scheme source
 ```
 
 Do not convert a recommended scheme into execution permission. Recommendation and confirmation are separate gates.
+
+## Repair Loop Mode
+
+Repair loop is a core ProofOps capability. A ProofOps loop should not stop at reporting a blocker when the confirmed repair mode allows diagnosis, repair, verification, and rerun.
+
+Every target plan must define one repair mode:
+
+| Mode | Behavior |
+| --- | --- |
+| `audit-only` | Collect evidence, classify blockers, and produce a final decision without changing the target product. |
+| `guided-repair` | Diagnose blockers and propose repairs, but wait for user confirmation before each repair action. |
+| `auto-repair-with-boundaries` | Automatically diagnose, repair, verify, and rerun within the confirmed boundaries; stop for confirmation when an action exceeds those boundaries. |
+
+For `auto-repair-with-boundaries`, the plan must explicitly list:
+
+- allowed repair surfaces, such as source code, tests, docs, generated profiles, non-destructive config, or local scripts
+- forbidden repair surfaces, such as production data, external database internals, secret stores, deployment state, release labels, tags, and published artifacts
+- actions that require a second confirmation even inside the repair loop, such as destructive data cleanup, branch publish, tag/release creation, deployment, external credential changes, or public status promotion
+- verification commands required after each repair
+- full rerun command or profile required before final decision
+
+If a blocker is found and the selected mode is `auto-repair-with-boundaries`, continue through:
+
+```text
+diagnose -> repair -> focused verification -> full rerun -> updated decision
+```
+
+If the blocker requires work outside the confirmed repair boundaries, stop as:
+
+```text
+BLOCKED: repair exceeds confirmed boundaries
+```
+
+and ask for a new repair-mode decision. Never treat repair mode as permission to promote a release, tag, deploy, or mark public docs as `GA stable`; those remain behind the Post-GO Promotion Gate.
 
 ## Post-GO Promotion Gate
 
@@ -411,17 +446,20 @@ Before starting or resuming a loop, establish the loop goal window in chat or in
 - `acceptanceCriteria`: evidence required for each phase and for the final goal.
 - `targetPlan`: the proposed loop plan, including final target, phase targets, scheme options, scheme sources, recommended schemes, per-phase acceptance criteria, coverage rows, evidence sources, blocker policy, repair policy, report cadence, and final decision vocabulary.
 - `targetPlanConfirmation`: the user's explicit confirmation or requested edits before loop execution.
+- `repairMode`: one of `audit-only`, `guided-repair`, or `auto-repair-with-boundaries`.
+- `repairBoundaries`: allowed repair surfaces, forbidden repair surfaces, second-confirmation actions, focused verification, and full rerun requirements.
 - `reportCadence`: when to update chat, `current-status.md`, or another status artifact.
 - `finalDecision`: the terminal decision vocabulary for this agent, such as `GO`, `CONDITIONAL-GO`, `NO-GO`, `BLOCKED`, or not release-ready.
 
 If the product exposes native release targets or release decisions, use them as the source of truth for `finalGoal`, `acceptanceCriteria`, and `finalDecision`. If the final goal or acceptance criteria are missing, ask for them or infer them from product-native contracts and clearly mark them as inferred. Do not claim loop completion until the final goal and all required acceptance criteria are proven by evidence.
 
-Before any loop action starts or resumes, present the provided or inferred `targetPlan` to the user as a confirmation proposal. The proposal must identify which targets came from user instruction, which came from product-native discovery, which were inferred from current workspace discovery, and which came from ProofOps presets. It must also show every phase target, every scheme option, the recommended scheme, the scheme source, and the tradeoff. Require explicit user confirmation before entering the loop and require scheme selection before execution. If the plan is not confirmed, stop as `BLOCKED: pending loop target plan confirmation`; do not run loop actions until the user confirms or edits the plan.
+Before any loop action starts or resumes, present the provided or inferred `targetPlan` to the user as a confirmation proposal. The proposal must identify which targets came from user instruction, which came from product-native discovery, which were inferred from current workspace discovery, and which came from ProofOps presets. It must also show every phase target, every scheme option, the recommended scheme, the scheme source, the tradeoff, the repair mode, and the repair boundaries. Require explicit user confirmation before entering the loop and require scheme selection before execution. If the plan is not confirmed, stop as `BLOCKED: pending loop target plan confirmation`; do not run loop actions until the user confirms or edits the plan.
 
 Minimum loop inputs:
 
 - `goal`: the release, soak, production-readiness, or operational outcome to prove.
 - `targetProduct` and `releaseTarget`: product root and product-native target/profile when available.
+- `repairMode` and `repairBoundaries`: whether repair is audit-only, guided, or automatic within confirmed boundaries.
 - `loopCadence`: continuous, fixed duration, fixed interval, or user-checkpoint.
 - `stopCondition`: product-native GO, NO-GO blocker, maximum duration, maximum attempts, failed readiness, failed precheck, release decision, or explicit user stop.
 - `stopPolicy`: stop immediately on product-grade gaps or continue evidence collection only when explicitly allowed.

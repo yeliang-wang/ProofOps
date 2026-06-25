@@ -60,6 +60,76 @@ The newest user instruction always wins over older lifecycle plans, heartbeat in
 - Do not clear data, delete logs, stop services, start runs, create branches, open PR/MR, merge, tag, release, or deploy unless the current user instruction permits it.
 - If an old heartbeat automation still asks for checks after the user has changed direction, delete or update the stale automation rather than reviving an obsolete run.
 
+## Target Confirmation And Memory Isolation Gate
+
+Every ProofOps execution starts from the current user request and the current workspace only. Do not use prior memories, previous run summaries, historical assumptions, old target plans, or earlier thread context to skip target selection, target plan review, or user confirmation.
+
+Before any loop action starts or resumes, you must:
+
+1. Identify the requested maturity or release target, such as `demo-to-alpha`, `alpha`, `beta`, `rc`, `ga`, `GA stable`, or a product-native release target.
+2. If the target is missing or ambiguous, stop and ask the user to choose or confirm the target. Do not infer `ga` or `GA stable` from prior memory.
+3. Build a reviewable `targetPlan` containing final goal, phase goals, acceptance criteria, release coverage matrix, evidence sources, blocker policy, repair policy, report cadence, and final decision vocabulary.
+4. For every phase in the plan, define the phase target, available scheme options, recommended scheme, scheme source, tradeoffs, and what user choice is required. A phase without a visible target and scheme options is not ready for execution.
+5. Present the `targetPlan` and per-phase scheme options for user review before running checks, creating profiles, starting services, launching traffic, collecting release evidence, or modifying product code.
+6. Wait for explicit user confirmation before entering the loop and for scheme selection. Accept only current-turn confirmation such as "execute this plan", "confirmed", or a clear equivalent. Prior approvals, memories, generated profiles, or persisted `targetPlanConfirmation` fields are not enough.
+
+Until this gate is satisfied, the only allowed actions are discovery, read-only inspection, target-plan drafting, and asking clarifying questions. Code changes, repair-loop actions, data cleanup, service starts, long-running validation, release evidence mutation, branch changes, commits, pushes, merges, tags, deployments, and GO/NO-GO finalization are forbidden.
+
+If this gate is not satisfied, return:
+
+```text
+BLOCKED: pending current target plan confirmation
+```
+
+and include the missing confirmation or target information. Never bypass this gate because a profile file says `targetPlanConfirmation.status=confirmed`, because a previous run was confirmed, or because memory says the user usually wants execution.
+
+## Per-Phase Target And Scheme Review
+
+Users must be able to understand what each phase is trying to prove before ProofOps runs it. Every target plan must therefore include a per-phase review table or equivalent structured list with:
+
+- phase name
+- phase target: the concrete outcome this phase must prove
+- scheme options: at least one executable option, and two or more options when a meaningful choice exists
+- recommendation: the default recommended option and why it fits the current product and requested target
+- source: where each option came from, such as explicit user instruction, product-native release target API, repository scripts, CI/CD config, ProofOps preset, architecture review, or current workspace discovery
+- evidence to collect: commands, APIs, reports, logs, or artifacts expected from the option
+- tradeoff: cost, runtime, blast radius, confidence level, and what the option does not prove
+- user decision needed: what the user must choose, confirm, reject, or edit before execution
+
+If multiple valid schemes exist, do not silently choose one. Provide a recommendation, explain the source and tradeoff, and ask the user to select. If only one scheme exists, still show its source and ask for confirmation. If a phase target or scheme source cannot be identified, stop as:
+
+```text
+BLOCKED: missing per-phase target or scheme source
+```
+
+Do not convert a recommended scheme into execution permission. Recommendation and confirmation are separate gates.
+
+## Post-GO Promotion Gate
+
+A `GO` release decision does not automatically authorize promotion actions. Treat the evidence loop and the release promotion as two separate gates.
+
+After a target such as `GA`, `GA stable`, `RC`, or `beta` reaches `GO`, stop and present a separate promotion plan before changing public status or release metadata. The promotion plan must list each proposed action, source evidence, files or systems to change, and rollback path.
+
+Promotion actions that require explicit user confirmation include:
+
+- updating README status, badges, lifecycle labels, or wording such as `GA stable`
+- updating CHANGELOG, release notes, install pages, website copy, or documentation status
+- creating or pushing Git tags
+- creating a GitHub/GitLab release
+- merging release branches or opening/merging release MRs/PRs
+- publishing artifacts, packages, containers, installers, or deployment manifests
+- changing project metadata, topics, About text, release dashboards, or product-visible status pages
+
+If the loop result is `CONDITIONAL-GO`, `NO-GO`, or `BLOCKED`, do not mark the project as `GA stable` or equivalent. Report the exact decision and blockers instead.
+
+If the user has not explicitly approved the promotion plan, return:
+
+```text
+BLOCKED: pending post-GO promotion confirmation
+```
+
+and do not modify release labels, README, tags, releases, deployment state, or published artifacts.
+
 ## Inputs To Discover Or Collect
 
 - `productRoot`: local workspace path.
@@ -339,14 +409,14 @@ Before starting or resuming a loop, establish the loop goal window in chat or in
 - `finalGoal`: the final release, readiness, operational, or lifecycle outcome that must be proven before the loop can stop successfully.
 - `phaseGoals`: ordered interim outcomes, checkpoints, or milestones. Every iteration must map to one current phase.
 - `acceptanceCriteria`: evidence required for each phase and for the final goal.
-- `targetPlan`: the proposed loop plan, including final target, phase targets, per-phase acceptance criteria, coverage rows, evidence sources, blocker policy, repair policy, report cadence, and final decision vocabulary.
+- `targetPlan`: the proposed loop plan, including final target, phase targets, scheme options, scheme sources, recommended schemes, per-phase acceptance criteria, coverage rows, evidence sources, blocker policy, repair policy, report cadence, and final decision vocabulary.
 - `targetPlanConfirmation`: the user's explicit confirmation or requested edits before loop execution.
 - `reportCadence`: when to update chat, `current-status.md`, or another status artifact.
 - `finalDecision`: the terminal decision vocabulary for this agent, such as `GO`, `CONDITIONAL-GO`, `NO-GO`, `BLOCKED`, or not release-ready.
 
 If the product exposes native release targets or release decisions, use them as the source of truth for `finalGoal`, `acceptanceCriteria`, and `finalDecision`. If the final goal or acceptance criteria are missing, ask for them or infer them from product-native contracts and clearly mark them as inferred. Do not claim loop completion until the final goal and all required acceptance criteria are proven by evidence.
 
-Before any loop action starts or resumes, present the provided or inferred `targetPlan` to the user as a confirmation proposal. The proposal must identify which targets came from user instruction, which came from product-native discovery, and which were inferred from context. Require explicit user confirmation before entering the loop. If the plan is not confirmed, stop as `BLOCKED: pending loop target plan confirmation`; do not run loop actions until the user confirms or edits the plan.
+Before any loop action starts or resumes, present the provided or inferred `targetPlan` to the user as a confirmation proposal. The proposal must identify which targets came from user instruction, which came from product-native discovery, which were inferred from current workspace discovery, and which came from ProofOps presets. It must also show every phase target, every scheme option, the recommended scheme, the scheme source, and the tradeoff. Require explicit user confirmation before entering the loop and require scheme selection before execution. If the plan is not confirmed, stop as `BLOCKED: pending loop target plan confirmation`; do not run loop actions until the user confirms or edits the plan.
 
 Minimum loop inputs:
 
